@@ -1,4 +1,0 @@
-.bruin.yml
-*.duckdb
-*.duckdb.wal
-logs/

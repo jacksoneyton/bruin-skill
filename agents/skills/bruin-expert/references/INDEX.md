@@ -15,6 +15,6 @@ Open the index for the area you need, then open only the pages it points to.
 - `_indexes/templates.md` | Templates (33 pages)
 - `_indexes/developer-tools.md` | Developer tools (VS Code extension, MCP, dev env) (12 pages)
 - `_indexes/bruin-cloud.md` | Bruin Cloud (38 pages)
-- `_indexes/template-sources.md` | Complete template pipelines (613 files)
+- `_indexes/template-sources.md` | Complete template pipelines (601 files)
 
 See `SOURCE.md` for the upstream commit these were generated from.

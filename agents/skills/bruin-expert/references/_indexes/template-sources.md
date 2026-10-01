@@ -5,7 +5,6 @@ Real asset and pipeline files from the Bruin templates. Use them as pattern refe
 ## academy-sql-advanced
 
 - `template-sources/academy-sql-advanced/.bruin.yml`
-- `template-sources/academy-sql-advanced/.gitignore`
 - `template-sources/academy-sql-advanced/AGENTS.md`
 - `template-sources/academy-sql-advanced/course/README.md`
 - `template-sources/academy-sql-advanced/course/answer-key.md`
@@ -63,7 +62,6 @@ Real asset and pipeline files from the Bruin templates. Use them as pattern refe
 ## academy-sql-beginner
 
 - `template-sources/academy-sql-beginner/.bruin.yml`
-- `template-sources/academy-sql-beginner/.gitignore`
 - `template-sources/academy-sql-beginner/AGENTS.md`
 - `template-sources/academy-sql-beginner/course/README.md`
 - `template-sources/academy-sql-beginner/course/answer-key.md`
@@ -118,7 +116,6 @@ Real asset and pipeline files from the Bruin templates. Use them as pattern refe
 ## academy-sql-intermediate
 
 - `template-sources/academy-sql-intermediate/.bruin.yml`
-- `template-sources/academy-sql-intermediate/.gitignore`
 - `template-sources/academy-sql-intermediate/AGENTS.md`
 - `template-sources/academy-sql-intermediate/course/README.md`
 - `template-sources/academy-sql-intermediate/course/answer-key.md`
@@ -196,7 +193,6 @@ Docs: `getting-started/templates-docs/athena-README.md`
 
 ## bigquery
 
-- `template-sources/bigquery/.gitignore`
 - `template-sources/bigquery/assets/example.sql`
 - `template-sources/bigquery/assets/macro_example.sql`
 - `template-sources/bigquery/assets/seed.asset.yml`
@@ -234,7 +230,6 @@ A Bruin pipeline that ingests Chargebee billing data into BigQuery and models it
 Docs: `getting-started/templates-docs/chargebee-bigquery-README.md`
 
 - `template-sources/chargebee-bigquery/.bruin.yml`
-- `template-sources/chargebee-bigquery/.gitignore`
 - `template-sources/chargebee-bigquery/assets/chargebee_raw/customer.asset.yml`
 - `template-sources/chargebee-bigquery/assets/chargebee_raw/event.asset.yml`
 - `template-sources/chargebee-bigquery/assets/chargebee_raw/invoice.asset.yml`
@@ -407,7 +402,6 @@ This pipeline is a simple example of a Bruin pipeline for DuckDB,
 Docs: `getting-started/templates-docs/duckdb-README.md`
 
 - `template-sources/duckdb/.bruin.yml`
-- `template-sources/duckdb/.gitignore`
 - `template-sources/duckdb/assets/example.sql`
 - `template-sources/duckdb/assets/macro_example.sql`
 - `template-sources/duckdb/assets/seed.asset.yml`
@@ -427,7 +421,6 @@ Docs: `getting-started/templates-docs/duckdb-README.md`
 ## duckdb-lineage
 
 - `template-sources/duckdb-lineage/.bruin.yml`
-- `template-sources/duckdb-lineage/.gitignore`
 - `template-sources/duckdb-lineage/assets/country.sql`
 - `template-sources/duckdb-lineage/assets/example.sql`
 - `template-sources/duckdb-lineage/assets/people.sql`
@@ -513,7 +506,6 @@ google-web-analytics turns the GA4 and Google Search Console exports you already
 Docs: `getting-started/templates-docs/google-web-analytics-README.md`
 
 - `template-sources/google-web-analytics/.bruin.yml`
-- `template-sources/google-web-analytics/.gitignore`
 - `template-sources/google-web-analytics/assets/web_analytics_raw/ga4_events_intraday.asset.yml`
 - `template-sources/google-web-analytics/assets/web_analytics_raw/gsc_export_log.asset.yml`
 - `template-sources/google-web-analytics/assets/web_analytics_raw/gsc_searchdata_site_impression.asset.yml`
@@ -614,7 +606,6 @@ Docs: `getting-started/templates-docs/iceberg-sqlite-local-README.md`
 
 - `template-sources/migration-fivetran/.agents/skills/bruin-fivetran-migrator/SKILL.md`
 - `template-sources/migration-fivetran/.agents/skills/bruin-fivetran-migrator/import_fivetran.py`
-- `template-sources/migration-fivetran/.gitignore`
 - `template-sources/migration-fivetran/bruin/assets/placeholder`
 - `template-sources/migration-fivetran/bruin/pipeline.yml`
 - `template-sources/migration-fivetran/fivetran-bruin-prompt.md`
@@ -653,7 +644,6 @@ posthog-bigquery turns raw PostHog product analytics into warehouse-ready
 Docs: `getting-started/templates-docs/posthog-bigquery-README.md`
 
 - `template-sources/posthog-bigquery/.bruin.yml`
-- `template-sources/posthog-bigquery/.gitignore`
 - `template-sources/posthog-bigquery/assets/posthog_raw/events.asset.yml`
 - `template-sources/posthog-bigquery/assets/posthog_raw/feature_flags.asset.yml`
 - `template-sources/posthog-bigquery/assets/posthog_raw/persons.asset.yml`
@@ -690,7 +680,6 @@ quickbooks-bigquery is a focused QuickBooks Online pipeline for BigQuery. It loa
 Docs: `getting-started/templates-docs/quickbooks-bigquery-README.md`
 
 - `template-sources/quickbooks-bigquery/.bruin.yml`
-- `template-sources/quickbooks-bigquery/.gitignore`
 - `template-sources/quickbooks-bigquery/assets/quickbooks_raw/accounts.asset.yml`
 - `template-sources/quickbooks-bigquery/assets/quickbooks_raw/bills.asset.yml`
 - `template-sources/quickbooks-bigquery/assets/quickbooks_raw/customers.asset.yml`
@@ -775,7 +764,6 @@ stripe-bigquery is a focused Stripe billing analytics pipeline for BigQuery. It 
 Docs: `getting-started/templates-docs/stripe-bigquery-README.md`
 
 - `template-sources/stripe-bigquery/.bruin.yml`
-- `template-sources/stripe-bigquery/.gitignore`
 - `template-sources/stripe-bigquery/assets/stripe_raw/customer.asset.yml`
 - `template-sources/stripe-bigquery/assets/stripe_raw/invoice.asset.yml`
 - `template-sources/stripe-bigquery/assets/stripe_raw/price.asset.yml`

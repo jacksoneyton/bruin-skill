@@ -310,7 +310,9 @@ def build(src: Path, out: Path) -> None:
                 rel_in = f.relative_to(tdir)
                 if any(part in SKIP_DIR_NAMES or part in {".git", "__pycache__", "logs"} for part in rel_in.parts):
                     continue
-                if f.suffix.lower() in BINARY_SUFFIXES or f.name == ".gitkeep":
+                if f.suffix.lower() in BINARY_SUFFIXES or f.name in {".gitkeep", ".gitignore"}:
+                    # Template .gitignore files are skipped on purpose: inside this skill they would
+                    # make git ignore the example .bruin.yml files that the templates ship.
                     continue
                 if rel_in.as_posix().lower() == "readme.md":
                     continue  # already shipped via docs/getting-started/templates-docs
