@@ -1,0 +1,443 @@
+# Duck DB
+
+DuckDB is an in-memory database designed to be fast and reliable.
+
+Bruin supports using a local DuckDB database.
+
+## Connection
+
+```yaml
+    connections:
+      duckdb:
+        - name: "connection_name"
+          path: "/path/to/your/duckdb/database.db"
+          read_only: false
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `path` | string | Yes | | Path to an existing or new DuckDB database file |
+| `read_only` | boolean | No | `false` | Open the database in read-only mode, enabling parallel read queries |
+
+> [!WARNING]
+> DuckDB does not allow concurrency between different processes, which means other clients should not be connected to the database while Bruin is running.
+
+### Read-Only Mode
+
+When `read_only` is set to `true`, the connection opens the DuckDB database in read-only access mode. This has two effects:
+- DuckDB does not acquire a write lock on the database file, allowing other processes to access it concurrently.
+- Multiple Bruin queries on the same connection can run in parallel instead of being serialized.
+
+This is useful when you only need to read from a shared DuckDB database and want to maximize query throughput.
+
+```yaml
+    connections:
+      duckdb:
+        - name: "my_readonly_db"
+          path: "/shared/data/analytics.db"
+          read_only: true
+```
+
+> [!NOTE]
+> Write operations (materializations, DDL) will fail on read-only connections. Only use this for connections that are exclusively used for reading.
+
+## Assets
+
+DuckDB assets should use the type `duckdb.sql` and if you specify a connection it must be of the `duckdb` type. For detailed parameters, you can check [Definition Schema](../assets/definition-schema.md) page.
+
+Asset names may be `table`, `schema.table`, or `catalog.schema.table`. A three-part name targets an attached database (catalog); Bruin creates the schema in that catalog automatically, but the catalog must already be attached.
+
+### Examples
+
+Create a view with orders per country
+
+```bruin-sql
+/* @bruin
+name: orders_per_country
+type: duckdb.sql
+materialization:
+    type: view
+@bruin */
+
+SELECT COUNT(*) as orders, country
+FROM events.orders
+WHERE status = "paid"
+GROUP BY country
+```
+
+Materialize new customers per region and append them to an existing table
+
+```bruin-sql
+/* @bruin
+name: new_customers_per_region
+type: duckdb.sql
+materialization:
+    type: table
+    strategy: append
+@bruin */
+
+SELECT COUNT(*) as customers, region
+FROM events.customers
+WHERE created_at >= {{ start_date }}
+  AND created_at < {{ end_date }}
+```
+
+### `duckdb.sensor.query`
+
+Checks if a query returns any results in DuckDB, runs every 5 minutes until this query returns any results.
+
+```yaml
+name: string
+type: string
+parameters:
+    query: string
+    timeout: duration (optional)
+```
+
+**Parameters**:
+
+- `query`: Query you expect to return any results
+- `timeout`: How long to wait before the sensor fails. Uses single-unit duration syntax (`s`, `m`, `h`, `d`, `ms`, `ns`), e.g. `1h` or `90m`. Defaults to `24h`. See [Sensor Timeout](../assets/sensor.md#timeout).
+
+#### Example: Partitioned upstream table
+
+Checks if the data available in upstream table for end date of the run.
+
+```yaml
+name: analytics_123456789.events
+type: duckdb.sensor.query
+parameters:
+    query: select exists(select 1 from upstream_table where dt = "{{ end_date }}")
+```
+
+#### Example: Streaming upstream table
+
+Checks if there is any data after end timestamp, by assuming that older data is not appended to the table.
+
+```yaml
+name: analytics_123456789.events
+type: duckdb.sensor.query
+parameters:
+    query: select exists(select 1 from upstream_table where inserted_at > "{{ end_timestamp }}")
+```
+
+### `duckdb.seed`
+
+`duckdb.seed` is a special type of asset used to represent CSV files that contain data that is prepared outside of your pipeline that will be loaded into your DuckDB database. Bruin supports seed assets natively, allowing you to simply drop a CSV file in your pipeline and ensuring the data is loaded to the DuckDB database.
+
+You can define seed assets in a file ending with `.asset.yml` or `.asset.yaml`:
+
+```yaml
+name: dashboard.hello
+type: duckdb.seed
+
+parameters:
+    path: seed.csv
+```
+
+**Parameters**:
+
+- `path`: The path to the CSV file that will be loaded into the data platform. This can be a relative file path (relative to the asset definition file) or an HTTP/HTTPS URL to a publicly accessible CSV file.
+
+> [!WARNING]
+> When using a URL path, column validation is skipped during `bruin validate`. Column mismatches will be caught at runtime.
+
+#### Examples: Load csv into a Duckdb database
+
+The examples below show how to load a CSV into a DuckDB database.
+
+```yaml
+name: dashboard.hello
+type: duckdb.seed
+
+parameters:
+    path: seed.csv
+```
+
+Example CSV:
+
+```csv
+name,networking_through,position,contact_date
+Y,LinkedIn,SDE,2024-01-01
+B,LinkedIn,SDE 2,2024-01-01
+```
+
+## Lakehouse Support  (beta)
+
+DuckDB can query [Iceberg](https://duckdb.org/docs/extensions/iceberg) and [DuckLake](https://duckdb.org/docs/extensions/ducklake) tables through its native extensions. DuckLake supports DuckDB, SQLite, or Postgres catalogs with S3- or GCS-backed storage.
+
+### Connection
+
+Add the `lakehouse` block to your DuckDB connection in `.bruin.yml`:
+
+```yaml
+connections:
+  duckdb:
+    - name: "example-conn"
+      path: "./path/to/duckdb.db"
+      lakehouse:
+        format: <iceberg|ducklake>
+        catalog:
+          type: <glue|postgres|duckdb|sqlite>
+          auth: { ... } # optional
+        storage:
+          type: <s3|gcs>
+          auth: { ... } # optional
+```
+
+<br>
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `format` | string | Yes | Table format: `iceberg` or `ducklake` |
+| `catalog` | object | Yes | Catalog configuration (Glue for Iceberg, DuckDB/SQLite/Postgres for DuckLake) |
+| `storage` | object | Yes | Storage configuration (`type` and `auth` required for both formats; `path` is required for DuckLake and optional for Iceberg) |
+
+---
+### Supported Lakehouse Formats
+
+#### DuckLake
+
+| Catalog | S3 | GCS |
+|-------------------|----|-----|
+| DuckDB | <span class="lh-check" aria-label="supported"></span> | <span class="lh-check" aria-label="supported"></span> |
+| SQLite | <span class="lh-check" aria-label="supported"></span> | <span class="lh-check" aria-label="supported"></span> |
+| Postgres | <span class="lh-check" aria-label="supported"></span> | <span class="lh-check" aria-label="supported"></span> |
+
+MySQL catalogs are currently not supported for DuckLake in Bruin due to limitations in the DuckDB MySQL connector and incomplete MySQL support in the DuckLake DuckDB extension.
+
+#### Iceberg
+
+| Catalog | S3 | GCS |
+|-------------------|----|-----|
+| Glue | <span class="lh-check" aria-label="supported"></span> | <span class="lh-check" aria-label="supported"></span> |
+
+For background, see DuckDB's [lakehouse format overview](https://duckdb.org/docs/stable/lakehouse_formats).
+
+---
+### Catalog Options
+For guidance, see DuckLake's [choosing a catalog database](https://ducklake.select/docs/stable/duckdb/usage/choosing_a_catalog_database).
+
+#### Glue
+
+```yaml
+catalog:
+  type: glue
+  catalog_id: "123456789012"
+  region: "us-east-1"
+  auth:
+    access_key: "${AWS_ACCESS_KEY_ID}"
+    secret_key: "${AWS_SECRET_ACCESS_KEY}"
+    session_token: "${AWS_SESSION_TOKEN}" # optional
+```
+
+#### Postgres
+
+```yaml
+catalog:
+  type: postgres
+  host: "localhost"
+  port: 5432 # optional - default: 5432
+  database: "ducklake_catalog"
+  auth:
+    username: "ducklake_user"
+    password: "ducklake_password"
+```
+
+#### DuckDB
+
+```yaml
+catalog:
+  type: duckdb
+  path: "metadata.ducklake"
+```
+
+`catalog.path` should point to the DuckLake metadata file.
+
+Note that if you are using DuckDB as your catalog database, you're limited to a single client.
+
+#### SQLite
+
+```yaml
+catalog:
+  type: sqlite
+  path: "metadata.sqlite"
+```
+
+---
+### Storage Options
+
+#### S3
+
+Bruin currently only supports explicit AWS credentials in the `auth` block. Session tokens are supported for temporary credentials (AWS STS).
+
+```yaml
+storage:
+  type: s3
+  path: "s3://my-ducklake-warehouse/path" # required for DuckLake, optional for Iceberg
+  region: "us-east-1"
+  auth:
+    access_key: "${AWS_ACCESS_KEY_ID}"
+    secret_key: "${AWS_SECRET_ACCESS_KEY}"
+    session_token: "${AWS_SESSION_TOKEN}" # optional
+```
+
+##### S3-compatible storage (MinIO, R2, B2, Tigris, on-prem)
+
+For S3-compatible backends, three optional fields can be set on the `storage` block. They are passed through to DuckDB's `CREATE SECRET` and behaviour is unchanged when they are omitted (AWS S3 defaults).
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `endpoint` | string | No | (AWS S3) | Custom S3 endpoint, e.g. `minio.local:9000`, `<account>.r2.cloudflarestorage.com`, `fly.storage.tigris.dev` |
+| `url_style` | string | No | `vhost` | `path` is required for MinIO and several other S3-compatible backends |
+| `use_ssl` | bool | No | `true` | Set to `false` for plain-HTTP local dev (e.g. MinIO without TLS) |
+
+```yaml
+# MinIO local dev
+storage:
+  type: s3
+  path: "s3://ducklake/warehouse"
+  endpoint: "minio.local:9000"
+  url_style: "path"
+  use_ssl: false
+  auth:
+    access_key: "${MINIO_ACCESS_KEY}"
+    secret_key: "${MINIO_SECRET_KEY}"
+```
+
+```yaml
+# Cloudflare R2
+storage:
+  type: s3
+  path: "s3://my-bucket/ducklake"
+  region: "auto"
+  endpoint: "<account>.r2.cloudflarestorage.com"
+  url_style: "path"
+  auth:
+    access_key: "${R2_ACCESS_KEY_ID}"
+    secret_key: "${R2_SECRET_ACCESS_KEY}"
+```
+
+#### GCS
+
+Bruin currently supports explicit GCS HMAC credentials in the `auth` block (`access_key` and `secret_key`). You need to create GCS HMAC keys first and declare them here. Quick link (GCP Console): [Interoperability settings](https://console.cloud.google.com/storage/settings;tab=interoperability)
+```yaml
+storage:
+  type: gcs
+  path: "gs://my-ducklake-warehouse/path" # required for DuckLake
+  auth:
+    access_key: "${GCS_HMAC_ACCESS_KEY}"
+    secret_key: "${GCS_HMAC_SECRET_KEY}"
+```
+
+#### Azure
+
+Bruin supports Azure Blob Storage for DuckLake. Authenticate either with an account-key `connection_string`, or with `account_name` alone to use DuckDB's credential chain (managed identity, `az login`, or environment credentials).
+
+```yaml
+storage:
+  type: azure
+  path: "az://my-container/path" # required for DuckLake
+  auth:
+    connection_string: "${AZURE_STORAGE_CONNECTION_STRING}"
+```
+
+```yaml
+# Managed identity / az login / environment credentials
+storage:
+  type: azure
+  path: "az://my-container/path"
+  auth:
+    account_name: "${AZURE_STORAGE_ACCOUNT}"
+```
+
+Bruin loads the `azure` extension and sets `azure_transport_option_type = 'curl'` (globally) so TLS to `*.blob.core.windows.net` uses the system CA bundle — required on Linux/containers, which must have `ca-certificates` installed.
+
+> [!NOTE]
+> DuckLake maintenance calls that delete/scan blobs (e.g.
+> `ducklake_delete_orphaned_files`) can still hit Azure-side issues on some setups; core
+> read/write works. See [duckdb/ducklake#776](https://github.com/duckdb/ducklake/issues/776).
+
+---
+### Usage
+
+Bruin makes the lakehouse catalog active for your session and ensures a default `main` schema is available (cannot create Iceberg schemas/tables directly on object storage, so they must already exist). You can query tables with or without a schema:
+
+```sql
+SELECT * FROM my_table;
+```
+
+You can also use the fully qualified path:
+
+```sql
+SELECT * FROM iceberg_catalog.main.my_table;
+```
+
+> [!NOTE]
+> Unqualified table names resolve to the `main` schema of the active catalog. Use `<schema>.<table>` to target non-main schemas.
+
+#### Example Asset
+
+```bruin-sql
+/* @bruin
+name: lakehouse_example
+type: duckdb.sql
+connection: example-conn
+@bruin */
+
+SELECT SUM(amount) as total_sales
+FROM orders;
+```
+
+### `duckdb.source`
+
+Defines DuckDB source assets for documenting existing tables and views in your DuckDB database. These assets are no-op (they don't execute), but are useful for:
+
+- Documenting existing DuckDB tables and views
+- Adding column descriptions and metadata
+- Establishing lineage relationships
+- Query preview functionality in the VSCode extension
+
+#### Example: Document an existing DuckDB table
+
+```yaml
+name: main.raw_events
+type: duckdb.source
+description: "Raw event data loaded from external sources"
+connection: duckdb-default
+
+tags:
+  - raw-data
+  - events
+domains:
+  - analytics
+
+meta:
+  business_owner: "Data Team"
+  data_steward: "data@company.com"
+  refresh_frequency: "daily"
+
+depends:
+  - main.event_types
+
+columns:
+  - name: event_id
+    type: "VARCHAR"
+    description: "Unique identifier for each event"
+
+  - name: user_id
+    type: "VARCHAR"
+    description: "Identifier of the user who triggered the event"
+
+  - name: event_type
+    type: "VARCHAR"
+    description: "Type of event"
+
+  - name: created_at
+    type: "TIMESTAMP"
+    description: "Timestamp when the event was created"
+
+  - name: payload
+    type: "JSON"
+    description: "Event payload data"
+```

@@ -1,0 +1,9 @@
+# Index: Secret providers
+
+5 pages. Paths are relative to references/.
+
+- `secrets/aws-secrets-manager.md` | Using AWS Secrets Manager as a Secrets Backend: Bruin supports using AWS Secrets Manager as a secrets backend for managing connection credentials. This is controlled via the --secrets-backend flag on the run command.
+- `secrets/bruinyml.md` | .bruin.yml Reference: The .bruin.yml file is the central configuration file for Bruin pipelines. It stores all credentials, connection details, and environment configurations needed to run...
+- `secrets/doppler.md` | Using Doppler as a Secrets Backend: Bruin supports using Doppler as a secrets backend for managing connection credentials. This is controlled via the --secrets-backend flag on the run command.
+- `secrets/overview.md` | Secret Providers: Bruin CLI normally retrieves secrets to instantiate connections to different platforms based on your local .bruin.yml, but it's also possible to use secret management...
+- `secrets/vault.md` | Using HashiCorp Vault as a Secrets Backend: Bruin supports using HashiCorp Vault with a kv generic secrets engine as a secrets backend for managing connection credentials. This is controlled via the --secrets-ba...

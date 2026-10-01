@@ -1,0 +1,16 @@
+# Index: Developer tools (VS Code extension, MCP, dev env)
+
+12 pages. Paths are relative to references/.
+
+- `getting-started/bruin-mcp.md` | Bruin MCP: Bruin is a CLI tool that allows users to ingest data from many different sources, transform data using SQL, Python, and R, run data quality checks, compare table outpu...
+- `getting-started/devenv.md` | Developer Environments: Bruin has native support for running the same pipeline against multiple environments. This feature is very useful for testing and development, as it allows you to quic...
+- `vscode-extension/configuration.md` | configuration: You can configure the Bruin VS Code extension to suit your preferences, adjusting settings for folding behavior and the default path separator.
+- `vscode-extension/getting-started.md` | Getting Started: Once you’ve installed the Bruin VS Code extension and configured your settings, you’re ready to start using its features. Follow these steps to get started:
+- `vscode-extension/overview.md` | Bruin VS Code Extension: The Bruin VS Code extension complements the Bruin CLI by offering a more visual and interactive approach to managing data pipelines. Integrated directly into VS Code,...
+- `vscode-extension/panel-overview.md` | Panels Overview: The Bruin VS Code extension provides three main panels that help streamline your workflow: the Side Panel, the Lineage Panel, and the Query Preview Panel.
+- `vscode-extension/panels/activity-bar.md` | Activity Bar: The Activity Bar provides database browsing capabilities directly within VS Code, allowing you to explore your data connections, view table details, and preview querie...
+- `vscode-extension/panels/lineage-panel.md` | Lineage Panel: The Lineage Panel is located at the bottom of the VS Code interface, near the terminal tab. It provides a visual representation of the current asset's lineage.
+- `vscode-extension/panels/query-preview.md` | Query Preview Panel: The Query Preview Panel is located at the bottom of the VS Code interface, near the Lineage Panel. It offers a visual representation of the query output, displayed as...
+- `vscode-extension/panels/side-panel/editor-experience.md` | Editor Experience: These in-editor features appear automatically based on file context or environment setup, helping you take quick action without leaving the editor.
+- `vscode-extension/panels/side-panel/side-panel.md` | Side Panel: The Side Panel in the Bruin VSCode extension enhances your workflow in two main ways:
+- `vscode-extension/panels/side-panel/tabs.md` | Tabs Overview: These tabs give you direct access to view and manage details of the currently open Bruin asset.

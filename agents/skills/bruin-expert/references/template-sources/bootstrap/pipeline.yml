@@ -1,0 +1,10 @@
+name: bootstrap
+catchup: false
+environments:
+  default:
+    connections:
+      duckdb:
+        - name: "duckdb-default"
+          path: "/tmp/duckdb.db"
+        - name: "duckdb-v1"
+          path: "/tmp/duckdb_v1.db"

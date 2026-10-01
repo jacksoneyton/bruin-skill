@@ -1,0 +1,227 @@
+# Bruin MCP
+
+Bruin is a CLI tool that allows users to ingest data from many different sources, transform data using SQL, Python, and R, run data quality checks, compare table outputs, and more.
+
+*[image: Bruin MCP]*
+
+Bruin MCP allows you to extend your AI agents to analyze, understand, and build upon your data using Bruin CLI. It allows AI agents to query data, compare tables, ingest data, and build pipelines on them.
+
+## Setup
+
+> **Tip**
+>
+> Please make sure you have [Bruin CLI installed](introduction/installation.md).
+
+> **Warning: Windows Users**
+>
+> On Windows, you may need to use the full path to the `bruin` executable instead of just `bruin` in the configuration files below.
+>
+> To find the path, open **Git Bash** (not PowerShell or Command Prompt) and run the following command:
+> ```bash
+> which bruin
+> ```
+>
+> > **Note:** The `which` command is a Unix/Bash command and will not work in PowerShell or Command Prompt. Make sure you're using Git Bash, which is included with [Git for Windows](https://git-scm.com/download/win).
+>
+> Then use the output path (e.g., `C:\Users\YourName\.bruin\bin\bruin.exe`) in place of `bruin` in the `command` field of your MCP configuration.
+
+### Claude Code
+
+To use Bruin MCP in Claude Code, run the following command in your terminal:
+
+```bash
+claude mcp add bruin -- bruin mcp
+```
+
+### Cursor IDE
+
+To use Bruin MCP in Cursor IDE, go to Cursor Settings > MCP & Integrations > Add Custom MCP, then add the following configuration to the configuration file:
+
+```json
+{
+  "mcpServers": {
+    "bruin": {
+      "command": "bruin",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+### VS Code
+
+There are two ways to set up Bruin MCP in VS Code:
+
+#### Option 1: Edit the mcp.json file
+
+1. Locate the `mcp.json` file:
+   - **macOS**: `~/.vscode/mcp.json`
+   - **Windows**: `%APPDATA%\Code\mcp.json`
+   - **Linux**: `~/.config/Code/mcp.json`
+
+2. Add the following configuration to the file:
+
+```json
+{
+  "servers": {
+    "bruin": {
+      "type": "stdio",
+      "command": "bruin",
+      "args": [
+        "mcp"
+      ]
+    }
+  },
+  "inputs": []
+}
+```
+
+> **Tip**
+>
+> If you already have other MCP servers configured, merge the `bruin` entry into your existing `servers` object rather than replacing the entire file.
+
+3. Restart your IDE.
+
+#### Option 2: Add from Command Palette
+
+1. Open the Command Palette with `Cmd+Shift+P` (macOS) or `Ctrl+Shift+P` (Windows/Linux).
+2. Type "Add MCP" and select the option to add a new MCP server.
+3. Select **Command (stdio)** as the server type.
+4. Enter `bruin mcp` as the command.
+5. Restart your IDE.
+
+### Codex CLI
+
+To use Bruin MCP in Codex CLI, add the following configuration to your `~/.codex/config.toml` file:
+
+```toml
+[mcp_servers.bruin]
+command = "bruin"
+args = ["mcp"]
+```
+
+## Bruin Environment Setup
+
+In order to make use of Bruin MCP, you need to have a Bruin project. A Bruin project is a folder that contains a `.bruin.yml` file.
+
+The simplest way to get started is to create a new Bruin project using `bruin init` command.
+
+```bash
+# Initialize a new Bruin project with a DuckDB template
+bruin init duckdb
+
+# If you don't give any arguments, it will ask you to select a template
+bruin init
+```
+
+This will create a new Bruin project with a DuckDB database as a starting point.
+
+You can:
+
+- [Read more about project configuration](../core-concepts/project.md) for your data warehouse or other sources.
+- [Programmatically add connections](../commands/connections.md#add-connection).
+- Use our [VS Code / Cursor extension](../vscode-extension/overview.md) to add connections.
+
+Bruin allows you to use different environments for your projects. You can [read more about project configuration](../core-concepts/project.md) to learn more.
+
+## Usage
+
+There are a couple of areas Bruin MCP can be helpful for you. Bruin CLI has complete functionality, and MCP is a simple layer to bridge the gap between the CLI and the AI editor.
+
+### Analyzing data
+
+Bruin CLI already has the ability to run queries across different databases. MCP server allows your AI agents to understand how to run queries on the given databases.
+
+A common example is to ask the AI agent to analyze a data in a certain table, such as "What is the average revenue of the products in the products table?" or "What is the total revenue of the orders in the orders table?"
+
+### Data ingestion
+
+Bruin already has connectors for [tens of sources](../ingestion/overview.md), Bruin MCP allows your AI agents to understand how to ingest data from the given sources.
+
+You can use Bruin MCP to get data from Shopify, for instance. You can simply say "bring all of my Shopify order data into BigQuery", and just enjoy the rest.
+
+### Data comparison
+
+A common task when dealing with changes in data pipelines is to compare data between two different environments. You create a new version of the table in your development environment, and you want to compare it with the production table to make sure it's correct.
+
+Thankfully, Bruin CLI already supports:
+
+- [environments](../core-concepts/project.md)
+- [data-diff](../commands/data-diff.md) command
+
+Using the Bruin MCP server, you can build new data models while ensuring that the data is correct and up-to-date using AI.
+
+## And more
+
+Once MCP setup is complete, you can ask questions in Cursor IDE or Claude Code like:
+
+- "How do I create a BigQuery asset in Bruin?"
+- "How is a pipeline.yml file configured in Bruin?"
+- "What data sources does Bruin support for ingestion?"
+- "How do I set up a Snowflake connection in Bruin?"
+- "How can I connect to my PostgreSQL database and run a query with Bruin?"
+- "How do I create a table in my data warehouse using Bruin?"
+- "How can I build a data pipeline in Bruin for ingesting CSV files?"
+- "How do I run data quality checks on my tables in Bruin?"
+
+Or you can give direct commands like:
+
+- "Create a BigQuery asset in Bruin"
+- "Configure a pipeline.yml file in Bruin"
+- "Show me the data sources Bruin supports for ingestion"
+- "Set up a Snowflake connection in Bruin"
+- "Connect to my PostgreSQL database and run a query with Bruin"
+- "Create a table in my data warehouse using Bruin"
+- "Build a data pipeline in Bruin for ingesting CSV files"
+- "Run data quality checks on my tables in Bruin"
+
+The AI assistant will answer these questions using up-to-date Bruin documentation and provide you with accurate examples. It can also execute Bruin commands directly to help you connect to databases, run queries, perform ingestion workflows, and create complete data pipelines.
+
+## Best Practices for AI Agents
+
+### Use `agents.md` Files
+
+Add `agents.md` files to guide AI agents working in your repository:
+
+**Root level** - Keep it high-level:
+- What the project does
+- How to navigate the repo
+- Available connections and their access levels
+
+**Per-pipeline/domain** - Be specific:
+- What data lives here and its schema
+- Typical tasks the agent should handle
+- Constraints (read-only vs write, dev vs prod)
+
+### Document Pitfalls
+
+In each `agents.md`, list common mistakes:
+- Time zone handling (e.g., "all timestamps are UTC")
+- Data arrival delays (e.g., "15-minute sync lag")
+- Schema gotchas (e.g., "`customer_id` is NULL for guest checkouts")
+- Known data quality caveats
+
+### Use Custom Checks as Examples
+
+Point agents to existing custom checks instead of writing ad-hoc queries:
+```markdown
+| Question | Use This Check |
+|----------|----------------|
+| Is revenue valid? | `check_revenue_not_negative` |
+| Is data fresh? | `check_data_freshness` |
+```
+
+### Default to Dev Environments
+
+Configure your project so agents use dev by default:
+```yaml
+# pipeline.yml
+dev:
+  schema_prefix: dev_agent_
+```
+
+Make this explicit in `agents.md` so agents know dev is safe for experimentation and prod requires explicit access.
+
+## Feedback
+
+We'd love to hear your feedback on Bruin MCP. Please [create an issue](https://github.com/bruin-data/bruin/issues/new) so that we can improve Bruin CLI & Bruin MCP.

@@ -1,0 +1,123 @@
+/* @bruin
+name: reports.rpt_marketing_roi
+type: sql
+materialization:
+  type: table
+depends:
+  - staging.stg_marketing_spend
+  - staging.stg_web_sessions
+  - staging.stg_orders
+columns:
+  - name: channel
+    type: varchar
+    checks:
+      - name: not_null
+@bruin */
+
+WITH channel_spend AS (
+    SELECT
+        spend_date,
+        channel,
+        sum(spend) AS total_spend,
+        sum(impressions) AS total_impressions,
+        sum(clicks) AS total_clicks,
+        sum(conversions) AS total_conversions
+    FROM staging.stg_marketing_spend
+    GROUP BY spend_date, channel
+),
+channel_sessions AS (
+    SELECT
+        session_date,
+        channel,
+        sum(total_sessions) AS sessions,
+        sum(new_users) AS new_users,
+        sum(purchase_events) AS purchases
+    FROM staging.stg_web_sessions
+    GROUP BY session_date, channel
+),
+daily_sessions AS (
+    SELECT
+        session_date,
+        sum(sessions) AS sessions
+    FROM channel_sessions
+    GROUP BY session_date
+),
+daily_revenue AS (
+    SELECT
+{{- if .IsClickHouse }}
+        toDate(order_date) AS order_date,
+{{- else if .IsBigQuery }}
+        DATE(order_date) AS order_date,
+{{- else }}
+        order_date::DATE AS order_date,
+{{- end }}
+        sum(order_total) AS total_revenue
+    FROM staging.stg_orders
+    WHERE payment_status = 'paid'
+{{- if .IsClickHouse }}
+    GROUP BY toDate(order_date)
+{{- else if .IsBigQuery }}
+    GROUP BY DATE(order_date)
+{{- else }}
+    GROUP BY order_date::DATE
+{{- end }}
+),
+report_channels AS (
+    SELECT
+        spend_date AS report_date,
+        channel
+    FROM channel_spend
+    UNION DISTINCT
+    SELECT
+        session_date AS report_date,
+        channel
+    FROM channel_sessions
+),
+channel_performance AS (
+    SELECT
+        rc.report_date,
+        rc.channel,
+        COALESCE(cs.total_spend, 0) AS total_spend,
+        COALESCE(cs.total_impressions, 0) AS total_impressions,
+        COALESCE(cs.total_clicks, 0) AS total_clicks,
+        COALESCE(cs.total_conversions, 0) AS total_conversions,
+        sess.sessions,
+        sess.new_users,
+{{- if .IsClickHouse }}
+        round(dr.total_revenue * sess.sessions / nullIf(ds.sessions, 0), 2) AS estimated_attributed_revenue
+{{- else }}
+        round(dr.total_revenue * sess.sessions / NULLIF(ds.sessions, 0), 2) AS estimated_attributed_revenue
+{{- end }}
+    FROM report_channels rc
+    LEFT JOIN channel_spend cs
+        ON rc.report_date = cs.spend_date
+        AND rc.channel = cs.channel
+    LEFT JOIN channel_sessions sess
+        ON rc.report_date = sess.session_date
+        AND rc.channel = sess.channel
+    LEFT JOIN daily_sessions ds
+        ON rc.report_date = ds.session_date
+    LEFT JOIN daily_revenue dr
+        ON rc.report_date = dr.order_date
+)
+SELECT
+    report_date,
+    channel,
+    total_spend,
+    total_impressions,
+    total_clicks,
+    total_conversions,
+    sessions,
+    new_users,
+    estimated_attributed_revenue,
+{{- if .IsClickHouse }}
+    round(estimated_attributed_revenue / nullIf(total_spend, 0), 2) AS estimated_roas,
+    round(total_spend / nullIf(total_conversions, 0), 2) AS cost_per_acquisition,
+    round(total_clicks / nullIf(total_impressions, 0) * 100, 2) AS click_through_rate
+{{- else }}
+    round(estimated_attributed_revenue / NULLIF(total_spend, 0), 2) AS estimated_roas,
+    round(total_spend / NULLIF(total_conversions, 0), 2) AS cost_per_acquisition,
+    round(total_clicks / NULLIF(total_impressions, 0) * 100, 2) AS click_through_rate
+{{- end }}
+FROM channel_performance
+ORDER BY report_date DESC, total_spend DESC

@@ -1,0 +1,141 @@
+# Index: Data ingestion (ingestr sources, reverse ETL)
+
+137 pages. Paths are relative to references/.
+
+- `ingestion/abraflexi.md` | ABRA Flexi: ABRA Flexi (formerly Flexibee) is a Czech cloud accounting and ERP system. Bruin reads it through the REST API at https://<account>.flexibee.eu/c/<company>/<evidence>....
+- `ingestion/adapty.md` | Adapty: Adapty is a subscription monetization platform for mobile and web apps. It exposes a batch Analytics Export API and a paginated paywall list through its Server-side API.
+- `ingestion/adjust.md` | Adjust: Adjust is a mobile marketing analytics platform that provides solutions for measuring and optimizing campaigns, as well as protecting user data.
+- `ingestion/adls.md` | Azure Data Lake Storage Gen2: Azure Data Lake Storage Gen2 is Azure Blob Storage with hierarchical namespace capabilities enabled for data lake workloads.
+- `ingestion/airtable.md` | Airtable: Airtable is a cloud-based platform that combines spreadsheet and database functionalities, designed for data management and collaboration.
+- `ingestion/allium.md` | Allium: Allium is a blockchain data platform that provides access to indexed blockchain data through a powerful query interface.
+- `ingestion/amplitude.md` | Amplitude: Amplitude is a product analytics platform used to track and analyze user behavior across web and mobile applications.
+- `ingestion/anthropic.md` | Anthropic: Anthropic is an AI safety company that builds Claude, a family of large language models. This source enables you to extract comprehensive data from the Anthropic Admin...
+- `ingestion/api-football.md` | API-Football: API-Football provides soccer data from API-SPORTS, including World Cup teams, fixtures, standings, players, venues, and match events.
+- `ingestion/apple-ads.md` | Apple Ads: Apple Ads (Apple Search Ads) is Apple's advertising platform for the App Store. App developers buy placements in the App Store's Search results, Today tab, "Suggested"...
+- `ingestion/applovin.md` | Applovin: AppLovin is a mobile technology company that allows developers of all sizes to market, monetize, analyze, and publish their apps through its mobile advertising, market...
+- `ingestion/applovin_max.md` | Applovin Max: AppLovin Max is a tool from AppLovin that helps app developers optimize ad revenue by selecting the highest-paying ads from various ad networks.
+- `ingestion/appsflyer.md` | Appsflyer: Appsflyer is a mobile marketing analytics and attribution platform that helps businesses track, measure, and optimize their app marketing efforts across various channels.
+- `ingestion/appstore.md` | Apple AppStore: The AppStore is an app marketplace developed and maintained by Apple, for mobile apps on its iOS and iPadOS operating systems. The store allows users to browse and dow...
+- `ingestion/asana.md` | Asana: Asana is a software-as-a-service platform designed for team collaboration and work management. Teams can create projects, assign tasks, set deadlines, and communicate...
+- `ingestion/attio.md` | Attio: Attio is an AI-native CRM platform that helps companies build, scale, and grow their business.
+- `ingestion/balldontlie.md` | BallDontLie FIFA: BallDontLie provides FIFA World Cup data, including teams, stadiums, matches, players, rosters, lineups, events, and match analytics.
+- `ingestion/bamboohr.md` | BambooHR: BambooHR is an HR platform for employee records, time off, time tracking, and related workforce data.
+- `ingestion/braze.md` | Braze: Braze is a customer engagement platform for cross-channel messaging and customer analytics.
+- `ingestion/bruin.md` | Bruin: Bruin is a data platform that allows you to build, test, and deploy data pipelines. Bruin Cloud provides an API to access your pipeline metadata and execution informat...
+- `ingestion/cassandra.md` | Cassandra: Apache Cassandra is a distributed wide-column database designed for high availability and large-scale workloads.
+- `ingestion/chargebee.md` | Chargebee: Chargebee is a subscription billing and revenue management platform for recurring billing, invoicing, and payments.
+- `ingestion/chess.md` | Chess: chess is an online platform offering chess games, tournaments, lessons, and more.
+- `ingestion/clevertap.md` | CleverTap: CleverTap is a customer engagement and retention platform that combines analytics, segmentation, and cross-channel campaigns for mobile and web apps.
+- `ingestion/clickup.md` | ClickUp: ClickUp is a cloud-based productivity platform designed to help teams and individuals manage tasks, projects, and workflows in one place.
+- `ingestion/cloudflare-radar.md` | Cloudflare Radar: Cloudflare Radar provides aggregated insights into Internet traffic, routing, connection quality, outages, bots, and Certificate Transparency data.
+- `ingestion/couchbase.md` | Couchbase: Couchbase is a distributed NoSQL cloud database that delivers unmatched performance, scalability, and flexibility for building modern applications.
+- `ingestion/cratedb.md` | CrateDB: CrateDB is a distributed SQL database for real-time search and analytics workloads.
+- `ingestion/csv.md` | Local CSV Files: Bruin supports local CSV files via Ingestr assets. You can load a CSV file into a data warehouse, or export data from another source into a local CSV file.
+- `ingestion/cursor.md` | Cursor: Cursor is an AI-powered code editor built for productivity.
+- `ingestion/customerio.md` | Customer.io: Customer.io is a customer engagement platform that enables businesses to send automated messages across email, push, SMS, and more.
+- `ingestion/db2.md` | IBM Db2: IBM Db2 is a high-performance, enterprise-grade relational database system designed for reliability, scalability, and transactional integrity.
+- `ingestion/deel.md` | Deel: Deel is a global workforce platform for contracts, HR, payroll, expenses, time off, recruiting, immigration, and IT operations.
+- `ingestion/docebo.md` | Docebo: Docebo is a cloud-based learning management system (LMS) that helps organizations deliver, track, and manage their training programs.
+- `ingestion/dune.md` | Dune: Dune is a blockchain analytics platform that provides access to on-chain data through SQL queries and a powerful API.
+- `ingestion/dynamodb.md` | DynamoDB: Amazon DynamoDB is a managed NoSQL database service provided by Amazon Web Services (AWS). It supports key-value and document data structures and is designed to handle...
+- `ingestion/elasticsearch.md` | Elasticsearch: Elasticsearch is a distributed, RESTful search and analytics engine designed for fast and scalable data retrieval and storage.
+- `ingestion/espn.md` | ESPN: ESPN exposes a public Site API that returns JSON for teams, scores, standings, and news across the major US sports plus international soccer.
+- `ingestion/exchangeratesapi.md` | Exchangeratesapi.io: exchangeratesapi.io (an APILayer product) serves current and historical foreign exchange rates.
+- `ingestion/facebook-ads.md` | Facebook Ads: Facebook Ads is the advertising platform that helps users to create targeted ads on Facebook, Instagram and Messenger.
+- `ingestion/fakturoid.md` | Fakturoid: Fakturoid is a Czech invoicing and accounting service for freelancers and small businesses. Bruin reads it through the Fakturoid API v3.
+- `ingestion/fastspring.md` | FastSpring: FastSpring is a merchant of record and e-commerce platform that handles payments, subscriptions, taxes, and invoicing for software and SaaS businesses.
+- `ingestion/fireflies.md` | Fireflies: Fireflies.ai is an AI-powered meeting assistant that automatically records, transcribes, and analyzes voice conversations from meetings across various video conferenci...
+- `ingestion/fluxx.md` | Fluxx: Fluxx is a cloud-based grants management platform designed to streamline and automate the entire grantmaking process for foundations, corporations, governments, and ot...
+- `ingestion/footballdata.md` | football-data.org: football-data.org provides soccer competition data, including World Cup teams, fixtures, standings, players, and plan-dependent deep match and squad data.
+- `ingestion/frankfurter.md` | Frankfurter: Frankfurter is a free API for current and historical foreign exchange rates.
+- `ingestion/freshdesk.md` | Freshdesk: Freshdesk is a cloud-based customer service platform that helps businesses manage customer support via multiple channels including email, phone, websites, and social m...
+- `ingestion/fundraiseup.md` | FundraiseUp: FundraiseUp is a modern donation platform that helps non-profits increase their online fundraising revenue.
+- `ingestion/g2.md` | G2: G2 is a peer-to-peer review platform for business software and services where users can share real-time reviews.
+- `ingestion/gcs.md` | Google Cloud Storage: Google Cloud Storage (GCS) is an online file storage web service for storing and accessing data on Google Cloud Platform infrastructure. The service combines the perfo...
+- `ingestion/github.md` | GitHub: GitHub is a developer platform that allows developers to create, store, manage and share their code.
+- `ingestion/gitlab.md` | GitLab: GitLab is a DevOps platform for hosting Git repositories, managing issues and merge requests, and running CI/CD pipelines.
+- `ingestion/google-ads.md` | Google Ads: Google Ads, formerly known as Google Adwords, is an online advertising platform developed by Google, where advertisers bid to display brief advertisements, service off...
+- `ingestion/google_analytics.md` | Google Analytics: Google Analytics is an analytics service that helps you measure traffic and engagement across various platforms, like websites and apps.
+- `ingestion/google_sheets.md` | Google Sheets: Google Sheets is a web-based spreadsheet program that is part of Google's free, web-based Google Docs Editors suite.
+- `ingestion/gorgias.md` | Gorgias: Gorgias is a helpdesk for e-commerce merchants, providing customer service via email, social media, SMS, and live chat.
+- `ingestion/granola.md` | Granola: Granola is an AI meeting-notes product. Bruin supports Granola as a source for Ingestr assets, including notes and folders from the Granola public API.
+- `ingestion/gsc.md` | Google Search Console: Google Search Console is a free Google service that reports how your site performs in Google Search, exposing search analytics, indexed sites, and submitted sitemaps.
+- `ingestion/hostaway.md` | Hostaway: Hostaway is a property management system (PMS) designed for vacation rental managers and hosts. It provides tools for managing listings, reservations, channels, and gu...
+- `ingestion/http.md` | HTTP: Bruin supports public HTTP and HTTPS file URLs as a source for Ingestr assets. You can use this source to ingest publicly accessible CSV, JSON, JSON Lines, and Parquet...
+- `ingestion/hubspot.md` | HubSpot: HubSpot is a customer relationship management software that helps businesses attract visitors, connect with customers, and close deals.
+- `ingestion/iceberg.md` | Apache Iceberg: Apache Iceberg is an open table format for large analytic datasets, bringing ACID transactions, schema evolution, and time travel to data stored in object storage.
+- `ingestion/indeed.md` | Indeed: Indeed is a job search and advertising platform that enables employers to post jobs and manage sponsored job campaigns.
+- `ingestion/influxdb.md` | InfluxDB: InfluxDB is a time series database optimized for storing high throughput metrics.
+- `ingestion/intercom.md` | Intercom: Intercom is a customer messaging platform that helps businesses engage with their customers through personalized, messenger-based experiences. This source enables you...
+- `ingestion/isoc_pulse.md` | Internet Society Pulse: Internet Society Pulse is a platform that monitors the health, availability, and evolution of the Internet, providing metrics on key technologies that contribute to it...
+- `ingestion/jira.md` | Jira: Jira is a proprietary issue tracking product developed by Atlassian that allows bug tracking and agile project management.
+- `ingestion/jobtread.md` | JobTread: JobTread is a construction management platform that helps contractors manage jobs, estimates, invoices, budgets, tasks, and more.
+- `ingestion/kafka.md` | Kafka: Kafka is a distributed event streaming platform used by thousands of companies for high-performance data pipelines, streaming analytics, data integration, and mission-...
+- `ingestion/kalshi.md` | Kalshi: Kalshi is a regulated prediction market exchange. Bruin supports Kalshi as a public, read-only source for Ingestr assets, allowing you to ingest exchange status, serie...
+- `ingestion/kinesis.md` | Amazon Kinesis: Amazon Kinesis is a cloud-based service for real-time data streaming and analytics, enabling the processing and analysis of large streams of data in real time.
+- `ingestion/klaviyo.md` | Klaviyo: Klaviyo is a marketing automation platform that helps businesses build and manage digital relationships with their customers by connecting through personalized email a...
+- `ingestion/linear.md` | Linear: Linear is a project management platform for software teams.
+- `ingestion/linkedinads.md` | LinkedIn Ads: LinkedIn Ads is an advertising platform that allows businesses and marketers to create, manage, and analyze advertising campaigns.
+- `ingestion/lumify.md` | Lumify: Lumify is an agent-ready sports intelligence API covering schedules, live scores, odds, betting splits, and explainable bet confidence across 8+ sports.
+- `ingestion/mailchimp.md` | Mailchimp: Mailchimp is an all-in-one marketing platform that helps businesses manage and talk to their clients, customers, and other interested parties through email marketing c...
+- `ingestion/manifold.md` | Manifold: Manifold is a prediction market platform. Bruin supports Manifold as a public read-only source for Ingestr assets, allowing you to ingest market, bet, comment, group,...
+- `ingestion/mixpanel.md` | Mixpanel: Mixpanel is an analytics service used for tracking user interactions with web and mobile applications.
+- `ingestion/monday.md` | Monday.com: Monday.com is a Work OS that powers teams to run projects and workflows with confidence. It's a simple, yet powerful platform that enables people to manage work, meet...
+- `ingestion/mongo.md` | MongoDB: MongoDB is a popular, open source NoSQL database known for its flexibility, scalability, and wide adoption in a variety of applications.
+- `ingestion/mysql.md` | MySQL: MySQL is a widely used relational database management system (RDBMS) that is free and open-source, making it ideal for both small and large applications.
+- `ingestion/notion.md` | Notion: Notion is an all-in-one workspace for note-taking, project management, and database management.
+- `ingestion/okta.md` | Okta: Okta is an identity and access management platform for managing users, groups, applications, and authentication policies.
+- `ingestion/onelake.md` | Microsoft OneLake: Microsoft OneLake is the single, unified, logical data lake for Microsoft Fabric. Every Fabric tenant gets one OneLake, and data is organized into workspaces and lakeh...
+- `ingestion/overview.md` | Data Ingestion: Bruin has built-in data ingestion capabilities thanks to ingestr. The basic idea is simple:
+- `ingestion/paddle.md` | Paddle: Paddle is a merchant-of-record billing platform for payments, subscriptions, and invoicing.
+- `ingestion/payrails.md` | Payrails: Payrails is a payment operations and orchestration platform that lets enterprises connect and manage multiple payment providers through a single integration.
+- `ingestion/personio.md` | Personio: Personio is a human resources management software that helps businesses
+- `ingestion/phantombuster.md` | PhantomBuster: PhantomBuster is a cloud-based data automation and web scraping platform that allows users to extract data from websites, automate actions.
+- `ingestion/pinterest.md` | Pinterest: Pinterest is a social media platform for discovering and sharing ideas using visual bookmarks.
+- `ingestion/pipedrive.md` | Pipedrive: Pipedrive is a cloud-based sales Customer Relationship Management (CRM) tool designed to help businesses manage leads and deals, track communication, and automate sale...
+- `ingestion/planetscale.md` | PlanetScale: PlanetScale is a managed, MySQL-compatible database platform built on Vitess. Bruin connects to it through a dedicated planetscalemysql connection, and it can be used...
+- `ingestion/plusvibeai.md` | Plus Vibe AI: Plus Vibe AI is an email marketing and outreach platform that helps businesses automate their email campaigns, manage leads, and track engagement metrics.
+- `ingestion/polymarket.md` | Polymarket: Polymarket is a prediction market platform. Bruin supports Polymarket as a public read-only source for Ingestr assets, including markets, events, prices, order books,...
+- `ingestion/posthog.md` | PostHog: PostHog is an open-source product analytics platform that helps teams understand user behavior, track events, and manage feature flags.
+- `ingestion/primer.md` | Primer: Primer is a unified payments infrastructure that enables businesses to accept, optimize, and manage payments globally.
+- `ingestion/quickbooks.md` | QuickBooks: QuickBooks is an accounting software package developed by Intuit.
+- `ingestion/rabbitmq.md` | RabbitMQ: RabbitMQ is an open-source message broker that implements the Advanced Message Queuing Protocol (AMQP). It is widely used for building distributed systems, microservic...
+- `ingestion/recurly.md` | Recurly: Recurly is a subscription management and recurring billing platform for subscriptions, invoicing, payments, and revenue recognition.
+- `ingestion/reddit_ads.md` | Reddit Ads: Reddit Ads is an advertising platform for creating, managing, and analyzing advertising campaigns on Reddit.
+- `ingestion/revenuecat.md` | RevenueCat: RevenueCat is a subscription management platform that helps mobile app developers build, analyze, and grow their subscription businesses.
+- `ingestion/reverse-etl.md` | Reverse ETL: Reverse ETL is ingestion in the other direction: instead of loading data into your warehouse, Bruin pushes rows out of the warehouse and into an operational tool — a C...
+- `ingestion/ripestat.md` | RIPEstat: RIPEstat is the RIPE NCC's open data platform. Its Data API is public and exposes Internet routing, registration, geography, DNS, and RPKI information without requirin...
+- `ingestion/s3.md` | S3: Amazon Simple Storage Service S3 is a service offered by Amazon Web Services (AWS) that provides object storage through a web service interface.Amazon S3 uses the same...
+- `ingestion/salesforce.md` | Salesforce: Salesforce is a cloud-based customer relationship management (CRM) platform that helps businesses manage sales, customer interactions, and business processes. It provi...
+- `ingestion/sap_hana.md` | SAP HANA: SAP HANA is an in-memory, column-oriented, relational database management system.
+- `ingestion/satismeter.md` | SatisMeter: SatisMeter collects in-app NPS, CSAT and CES survey responses.
+- `ingestion/sendgrid.md` | SendGrid: SendGrid is Twilio's email delivery and marketing platform.
+- `ingestion/sftp.md` | sftp: SFTP (SSH File Transfer Protocol) is a secure file transfer protocol that runs over the SSH protocol. It provides a secure way to transfer files between a local and a...
+- `ingestion/sharepoint.md` | SharePoint: SharePoint Online is Microsoft's document management platform.
+- `ingestion/shopify.md` | Shopify: Shopify is a comprehensive e-commerce platform that enables individuals and businesses to create online stores.
+- `ingestion/sklik.md` | Sklik: Sklik is the paid-search advertising platform of Seznam.cz, the dominant Czech search engine.
+- `ingestion/slack.md` | Slack: slack is a messaging platform for teams and organizations where they can collaborate, share ideas and information.
+- `ingestion/smartsheet.md` | Smartsheet: Smartsheet is a software as a service (SaaS) offering for collaboration and work management.
+- `ingestion/snapchat-ads.md` | Snapchat Ads: Snapchat Ads is an advertising platform that enables businesses to create, manage, and analyze ad campaigns targeting Snapchat's user base.
+- `ingestion/socrata.md` | Socrata: Socrata is an open data platform used by governments and organizations to publish and share public datasets. The platform powers thousands of open data portals worldwi...
+- `ingestion/solidgate.md` | Solidgate: Solidgate is a one-stop payment processing platform that ensures seamless online purchases and streamlined payment infrastructure.
+- `ingestion/spanner.md` | GCP Spanner: GCP Spanner is a fully managed, mission-critical database service that combines the capabilities of relational databases, key-value stores, and search engines.
+- `ingestion/sqlite.md` | SQLite: SQLite is a C-language library that implements a small, fast, self-contained, high-reliability, full-featured, SQL database engine.
+- `ingestion/square.md` | Square: Square is a payments and commerce platform for businesses.
+- `ingestion/starrocks.md` | StarRocks: StarRocks is a high-performance analytical (OLAP) database. Besides its own internal storage, it can query open lakehouse table formats — Apache Iceberg, Hudi, Hive, a...
+- `ingestion/stripe.md` | Stripe: Stripe is a technology company that builds economic infrastructure for the internet, providing payment processing software and APIs for e-commerce websites and mobile...
+- `ingestion/sumble.md` | Sumble: Sumble provides organization, people, and intent-signal data for go-to-market teams.
+- `ingestion/surveymonkey.md` | SurveyMonkey: SurveyMonkey is an online survey platform that allows users to create surveys, collect responses, and analyze data.
+- `ingestion/tiktokads.md` | TikTok Ads: TikTok Ads is an advertising platform that enables businesses and marketers to create, manage, and analyze ad campaigns targeting TikTok's user base.
+- `ingestion/trello.md` | Trello: Trello is a visual work-management tool that organizes projects into boards, lists, and cards.
+- `ingestion/trustpilot.md` | Trustpilot: Trustpilot provides a platform for collecting and sharing customer reviews.
+- `ingestion/twenty.md` | Twenty CRM: Twenty is an open-source CRM. It runs both as a hosted workspace (api.twenty.com) and self-hosted on your own domain; Bruin supports both.
+- `ingestion/twilio.md` | Twilio: Twilio is a cloud communications platform for messaging, voice, and phone numbers.
+- `ingestion/twocheckout.md` | 2Checkout (Verifone): 2Checkout (now part of Verifone) is a payment and subscription platform that handles online sales, recurring billing, and global payments for software and digital good...
+- `ingestion/typeform.md` | Typeform: Typeform is an online form and survey platform for building interactive forms and collecting responses.
+- `ingestion/vitess.md` | Vitess: Vitess is a MySQL-compatible database clustering and sharding system originally built at YouTube. It speaks the MySQL wire protocol through vtgate, and Bruin connects...
+- `ingestion/wise.md` | Wise: Wise is a global financial technology company that provides international money transfers, multi-currency accounts, and business payment solutions.
+- `ingestion/wistia.md` | Wistia: Wistia is a video hosting and analytics platform for businesses.
+- `ingestion/yfinance.md` | Yahoo Finance: Yahoo Finance provides market data for stocks, ETFs, mutual funds, indices, currencies and crypto. Bruin supports Yahoo Finance as a source for ingestr assets, so you...
+- `ingestion/zendesk.md` | Zendesk: Zendesk is a cloud-based customer service and support platform. It offers a range of features including ticket management, self-service options, knowledgebase manageme...
+- `ingestion/zoom.md` | Zoom: Zoom is a video conferencing platform used for online meetings and webinars.

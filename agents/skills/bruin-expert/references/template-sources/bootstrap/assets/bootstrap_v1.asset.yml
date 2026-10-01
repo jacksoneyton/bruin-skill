@@ -1,0 +1,7 @@
+name: public.bootstrap_v1
+type: duckdb.seed
+connection: duckdb-v1
+
+parameters:
+    path: seed.csv
+    version: v1

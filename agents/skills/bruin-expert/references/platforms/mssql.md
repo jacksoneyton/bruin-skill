@@ -1,0 +1,420 @@
+# Microsoft SQL Server
+
+Bruin supports Microsoft SQL Server as a data platform.
+
+> [!NOTE]
+> We tend to use "MS SQL" interchangeably to refer to Microsoft SQL Server, apologies for any confusion.
+
+## Connection
+
+In order to set up a SQL Server connection in Bruin, you need to add a configuration item to `connections` in the `.bruin.yml` file complying with the following schema.
+
+```yaml
+    connections:
+      mssql:
+        - name: "connection_name"
+          username: "mssql_user"
+          password: "XXXXXXXXXX"
+          host: "mssql_host.somedomain.com"
+          port: 1433
+          database: "dev"
+          options: "encrypt=disable&TrustServerCertificate=true"  # optional
+```
+
+### Connection Parameters
+
+- `name` (required): The name of the connection to be used in assets
+- `username` (required): SQL Server username
+- `password` (required): SQL Server password
+- `host` (required): Hostname or IP address of the SQL Server
+- `port` (optional): Port number (default: 1433)
+- `database` (required): Database name to connect to
+- `options` (optional): Additional connection string parameters
+
+### Connection Options
+
+The `options` field allows you to customize the connection behavior with additional parameters. If not specified, Bruin uses safe defaults suitable for local development and Docker environments.
+
+#### Default Behavior (No Options)
+
+When `options` is not specified, these defaults are applied:
+
+- `TrustServerCertificate=true` - Trust self-signed certificates
+- `encrypt=disable` - Disable encryption (suitable for local/Docker)
+- `app name=Bruin CLI` - Application identifier
+
+#### Common Use Cases
+
+**Production with Full Encryption:**
+
+```yaml
+connections:
+  mssql:
+    - name: "mssql_prod"
+      username: "prod_user"
+      password: "SecurePassword"
+      host: "production.database.azure.com"
+      port: 1433
+      database: "ProductionDB"
+      options: "encrypt=true&TrustServerCertificate=false"
+```
+
+**Azure SQL Database:**
+
+```yaml
+connections:
+  mssql:
+    - name: "mssql_azure"
+      username: "user@server"
+      password: "password"
+      host: "myserver.database.windows.net"
+      port: 1433
+      database: "mydb"
+      options: "encrypt=true"
+```
+
+**Local Development (Explicit):**
+
+```yaml
+connections:
+  mssql:
+    - name: "mssql_local"
+      username: "sa"
+      password: "LocalPass123"
+      host: "localhost"
+      port: 1433
+      database: "devdb"
+      options: "encrypt=disable&TrustServerCertificate=true"
+```
+
+**Custom Connection Timeout:**
+
+```yaml
+connections:
+  mssql:
+    - name: "mssql_custom"
+      username: "user"
+      password: "password"
+      host: "server.com"
+      port: 1433
+      database: "mydb"
+      options: "connection timeout=30&encrypt=true"
+```
+
+#### Available Options
+
+Common SQL Server connection string parameters:
+
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `encrypt` | `true`, `false`, `disable` | Enable/disable encryption |
+| `TrustServerCertificate` | `true`, `false` | Trust server certificate |
+| `connection timeout` | number | Connection timeout in seconds (default: 30) |
+| `app name` | string | Application name identifier |
+| `ApplicationIntent` | `ReadOnly`, `ReadWrite` | For Always On availability groups |
+| `MultiSubnetFailover` | `true`, `false` | For failover scenarios |
+| `packet size` | 4096-32767 | Network packet size |
+
+For a complete list of available parameters, see the [go-mssqldb documentation](https://github.com/microsoft/go-mssqldb?tab=readme-ov-file#connection-parameters-and-dsn).
+
+## SQL Server Assets
+
+### `ms.sql`
+
+Runs a materialized SQL Server asset or an SQL script. For detailed parameters, you can check [Definition Schema](../assets/definition-schema.md) page.
+
+Asset names may be `table`, `schema.table`, or `database.schema.table`. A three-part name lets you target a database other than the one in your connection config.
+
+For table assets using the default or `create+replace` materialization strategy, Bruin honors the asset's `columns` schema when every column defines a `type`: it creates the table with the declared column types and then inserts the query result. If any declared column has no type, Bruin keeps SQL Server's `SELECT INTO` behavior so column metadata used only for checks or documentation can still rely on SQL Server type inference.
+
+> **Warning: Three-part `ddl` assets across databases**
+>
+> With the `ddl` materialization strategy, Bruin auto-creates the asset's schema in the connection's *current* database. If a `database.schema.table` asset targets a different database, the schema must already exist there or the run fails with a "schema does not exist" error. Other strategies (e.g. `create+replace`) create the table directly and are unaffected.
+
+#### Examples
+
+Run an MS SQL script to generate sales report
+
+```bruin-sql
+/* @bruin
+name: sales_report
+type: ms.sql
+@bruin */
+
+with monthly_sales as (
+    select
+        product_id,
+    year(order_date) as order_year,
+    month(order_date) as order_month,
+    sum(quantity) as total_quantity,
+    sum(price) as total_sales
+from sales.orders
+group by product_id, year(order_date), month(order_date)
+    )
+select
+    product_id,
+    order_year,
+    order_month,
+    total_quantity,
+    total_sales
+from monthly_sales
+order by order_year, order_month;
+```
+
+### `ms.sensor.table`
+
+Sensors are a special type of assets that are used to wait on certain external signals.
+
+Checks if a table exists in MSSQL, runs by default every 30 seconds until this table is available.
+
+```yaml
+name: string
+type: string
+parameters:
+    table: string
+    poke_interval: int (optional)
+    timeout: duration (optional)
+```
+
+**Parameters**:
+
+- `table`: `database_id.schema_id.table_id`, `schema_id.table_id`, or (for default schema `dbo`) `table_id` format.
+- `poke_interval`: The interval between retries in seconds (default 30 seconds).
+- `timeout`: How long to wait before the sensor fails. Uses single-unit duration syntax (`s`, `m`, `h`, `d`, `ms`, `ns`), e.g. `1h` or `90m`. Defaults to `24h`. See [Sensor Timeout](../assets/sensor.md#timeout).
+
+### `ms.sensor.query`
+
+Checks if a query returns any results in SQL Server, runs every 5 minutes until this query returns any results.
+
+```yaml
+name: string
+type: string
+parameters:
+    query: string
+    poke_interval: int (optional)
+    timeout: duration (optional)
+```
+
+**Parameters**:
+
+- `query`: Query you expect to return any results
+- `poke_interval`: The interval between retries in seconds (default 30 seconds).
+- `timeout`: How long to wait before the sensor fails. Uses single-unit duration syntax (`s`, `m`, `h`, `d`, `ms`, `ns`), e.g. `1h` or `90m`. Defaults to `24h`. See [Sensor Timeout](../assets/sensor.md#timeout).
+
+#### Example: Partitioned upstream table
+
+Checks if the data available in upstream table for end date of the run.
+
+```yaml
+name: analytics_123456789.events
+type: ms.sensor.query
+parameters:
+    query: select case when exists(select 1 from upstream_table where dt = '{{ end_date }}') then 1 else 0 end
+```
+
+#### Example: Streaming upstream table
+
+Checks if there is any data after end timestamp, by assuming that older data is not appended to the table.
+
+```yaml
+name: analytics_123456789.events
+type: ms.sensor.query
+parameters:
+    query: select case when exists(select 1 from upstream_table where inserted_at > '{{ end_timestamp }}') then 1 else 0 end
+```
+
+### `ms.seed`
+
+`ms.seed` is a special type of asset used to represent CSV files that contain data that is prepared outside of your pipeline that will be loaded into your MSSQL database. Bruin supports seed assets natively, allowing you to simply drop a CSV file in your pipeline and ensuring the data is loaded to the MSSQL database.
+
+You can define seed assets in a file ending with `.asset.yml` or `.asset.yaml`:
+
+```yaml
+name: dashboard.hello
+type: ms.seed
+
+parameters:
+    path: seed.csv
+```
+
+**Parameters**:
+
+- `path`: The path to the CSV file that will be loaded into the data platform. This can be a relative file path (relative to the asset definition file) or an HTTP/HTTPS URL to a publicly accessible CSV file.
+
+> [!WARNING]
+> When using a URL path, column validation is skipped during `bruin validate`. Column mismatches will be caught at runtime.
+
+#### Examples: Load csv into a MSSQL database
+
+The examples below show how to load a CSV into an MSSQL database.
+
+```yaml
+name: dashboard.hello
+type: ms.seed
+
+parameters:
+    path: seed.csv
+```
+
+Example CSV:
+
+```csv
+name,networking_through,position,contact_date
+Y,LinkedIn,SDE,2024-01-01
+B,LinkedIn,SDE 2,2024-01-01
+```
+
+### `ms.source`
+
+Defines Microsoft SQL Server source assets for documenting existing tables and views in your SQL Server database. These assets are no-op (they don't execute), but are useful for:
+
+- Documenting existing SQL Server tables and views
+- Adding column descriptions and metadata
+- Establishing lineage relationships
+- Query preview functionality in the VSCode extension
+
+#### Example: Document an existing SQL Server table
+
+```yaml
+name: dbo.customers
+type: ms.source
+description: "Customer master data from the CRM system"
+connection: mssql-default
+
+tags:
+  - crm
+  - master-data
+  - customers
+domains:
+  - customer-management
+
+meta:
+  business_owner: "CRM Team"
+  data_steward: "crm@company.com"
+  refresh_frequency: "daily"
+
+depends:
+  - dbo.regions
+  - dbo.customer_segments
+
+columns:
+  - name: customer_id
+    type: "INT"
+    description: "Unique identifier for each customer"
+
+  - name: full_name
+    type: "NVARCHAR(200)"
+    description: "Customer's full name"
+
+  - name: email
+    type: "NVARCHAR(255)"
+    description: "Customer's email address"
+
+  - name: created_at
+    type: "DATETIME2"
+    description: "Timestamp when the customer record was created"
+
+  - name: is_active
+    type: "BIT"
+    description: "Whether the customer account is currently active"
+```
+
+## Change Data Capture (CDC)
+
+Bruin supports SQL Server CDC through the `ingestr` asset type, capturing row-level changes (inserts, updates, deletes) and replicating them to a destination. SQL Server offers two capture mechanisms, selected with the `cdc_sql_capture` parameter:
+
+- **Log-based CDC** (`cdc_sql_capture: cdc`, the default) reads the SQL Server CDC change tables.
+- **Change Tracking** (`cdc_sql_capture: change_tracking`) uses the lighter-weight Change Tracking feature.
+
+### Prerequisites
+
+For log-based CDC, enable CDC on the source database:
+
+```sql
+EXEC sys.sp_cdc_enable_db;
+-- then enable CDC on each table you want to replicate
+EXEC sys.sp_cdc_enable_table @source_schema = N'dbo', @source_name = N'users', @role_name = NULL;
+```
+
+For Change Tracking, enable it on the database and each table:
+
+```sql
+ALTER DATABASE MyDatabase SET CHANGE_TRACKING = ON (CHANGE_RETENTION = 2 DAYS, AUTO_CLEANUP = ON);
+ALTER TABLE dbo.users ENABLE CHANGE_TRACKING;
+```
+
+Change Tracking requires each source table to have a primary key, and replicates one table per asset — the `"*"` wildcard source table is only available for log-based CDC.
+
+### Parameters
+
+CDC is enabled by setting `cdc: "true"` on an `ingestr` asset with a SQL Server source connection.
+
+| Parameter | Required | Applies to | Description |
+|-----------|----------|------------|-------------|
+| `cdc` | Yes | both | Set to `"true"` to enable CDC mode |
+| `cdc_sql_capture` | No | both | `"cdc"` (log-based, default) or `"change_tracking"` |
+| `stream` | No | both | Set to `true` for continuous (real-time) streaming. Omit for batch replication (read up to the current change position and exit) |
+| `cdc_mode` | No | both | **Deprecated** — use `stream` instead. `cdc_mode: stream` is equivalent to `stream: true` |
+| `cdc_capture_instance` | No | log-based CDC | Capture instance name to read from |
+| `cdc_poll_interval` | No | both | Delay between polls of the source, such as `10s`. Change Tracking only applies it while streaming, where it defaults to `1s` |
+| `cdc_dest_schema` | No | log-based CDC | Destination schema to use for multi-table CDC runs |
+| `source_table` | Yes | both | Source table in `schema.table` format |
+| `incremental_strategy` | No | both | Defaults to `"merge"` when CDC is enabled. CDC assets must use `"merge"`; Bruin rejects other strategies. |
+
+> [!NOTE]
+> When CDC is enabled, primary key columns do not need to be declared in the asset — log-based CDC and Change Tracking both determine keys from the source table.
+
+### Examples
+
+#### Log-based CDC
+```yaml
+name: dbo.users
+type: ingestr
+connection: bigquery
+
+parameters:
+  source_connection: mssql_prod
+  source_table: dbo.users
+  destination: bigquery
+  cdc: "true"
+```
+
+#### Change Tracking
+```yaml
+name: dbo.users
+type: ingestr
+connection: bigquery
+
+parameters:
+  source_connection: mssql_prod
+  source_table: dbo.users
+  destination: bigquery
+  cdc: "true"
+  cdc_sql_capture: change_tracking
+```
+
+#### Streaming Change Tracking
+```yaml
+name: dbo.orders
+type: ingestr
+connection: bigquery
+
+parameters:
+  source_connection: mssql_prod
+  source_table: dbo.orders
+  destination: bigquery
+  cdc: "true"
+  cdc_sql_capture: change_tracking
+  cdc_poll_interval: 2s
+  stream: true
+```
+
+A streaming CDC asset (`stream: true`) runs continuously, so it is excluded from a normal `bruin run` and is launched on its own:
+
+```bash
+bruin run --stream assets/dbo.orders.asset.yml
+```
+
+Change Tracking reports the net change to a row rather than every individual change, so a shorter `cdc_poll_interval` narrows the window in which several updates to the same row collapse into one. Use log-based CDC when you need the full change history. While a stream is idle, ingestr periodically restamps its resume cursor so the recorded version stays inside the database's `CHANGE_RETENTION` window and a restart can resume instead of taking a fresh snapshot.
+
+See [Streaming assets](../assets/ingestr.md#streaming-assets) for the full behaviour and restrictions.

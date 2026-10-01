@@ -1,0 +1,179 @@
+# Project
+
+A project in Bruin is a Git-initialized repository that contains your data pipelines. The project is defined by the `.bruin.yml` configuration file, which stores your environments, connections, and secrets.
+
+## Overview
+
+In Bruin, **project = repository**. Your Bruin project is simply your Git repository, and all configuration lives in a single `.bruin.yml` file at the root of that repository.
+
+The `.bruin.yml` file must be located in the root directory of your Git repository. You can override this location using the `--config-file` flag or the `BRUIN_CONFIG_FILE` environment variable:
+
+```bash
+bruin run --config-file /path/to/.bruin.yml
+
+# or
+export BRUIN_CONFIG_FILE=/path/to/.bruin.yml
+```
+
+The first time you run `bruin run`, `bruin validate`, or most other commands that need configuration, the `.bruin.yml` file is automatically created and added to `.gitignore` to keep credentials secure. If you specify a configuration path with `--config-file` or `BRUIN_CONFIG_FILE`, the file must already exist; a missing file returns an error without creating a config or an empty environment. Configuration supplied through `BRUIN_CONFIG_FILE_CONTENT` continues to take precedence over the file.
+
+## Configuration File Structure
+
+```yaml
+default_environment: default
+environments:
+  default:
+    connections:
+      duckdb:
+        - name: "duckdb-default"
+          path: "duckdb.db"
+      chess:
+        - name: "chess-default"
+          players:
+            - "FabianoCaruana"
+            - "Hikaru"
+            - "MagnusCarlsen"
+            - "GothamChess"
+            - "DanielNaroditsky"
+            - "AnishGiri"
+            - "Firouzja2003"
+            - "LevonAronian"
+            - "WesleySo"
+            - "GarryKasparov"
+  
+  staging:
+    schema_prefix: "stg_"
+    connections:
+      postgres:
+        - name: "postgres-staging"
+          username: "staging_user"
+          password: "staging_pass"
+          host: "staging-db.example.com"
+          port: 5432
+          database: "analytics"
+
+  production:
+    connections:
+      postgres:
+        - name: "postgres-prod"
+          username: "prod_user"
+          password: "prod_pass"
+          host: "prod-db.example.com"
+          port: 5432
+          database: "analytics"
+```
+
+## Top-Level Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `default_environment` | string | No | Environment to use when none is specified. Defaults to `default`. |
+| `environments` | map | Yes | Map of environment names to their configurations. |
+
+## Key Concepts
+
+The `.bruin.yml` file contains three main concepts that define how your project connects to external systems:
+
+### Connections
+
+Connections are sets of credentials that enable Bruin to communicate with external platforms—both data platforms (BigQuery, Snowflake, PostgreSQL) and ingestion sources (Shopify, HubSpot, Stripe).
+
+[Learn more about Connections →](connections.md)
+
+### Secrets
+
+Secrets are custom credentials—API keys, passwords, tokens—that can be injected into your assets during execution. They complement connections for cases where you need direct access to credentials in your code.
+
+[Learn more about Secrets →](secrets.md)
+
+### Environments
+
+Environments are configuration contexts that enable you to run the same pipeline code against different targets. For example, you can use a development database during testing and a production database in deployment.
+
+Each environment contains:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `connections` | object | Yes | Connection definitions grouped by type. |
+| `schema_prefix` | string | No | Prefix added to schema names (useful for dev/staging environments). |
+
+## Using Environments
+
+### Switching Environments
+
+Use the `--environment` flag to run pipelines against a specific environment:
+
+```bash
+# Run against the default environment
+bruin run
+
+# Run against staging
+bruin run --environment staging
+
+# Run against production
+bruin run --environment production
+```
+
+### Environment Variables
+
+Use environment variables to keep credentials out of `.bruin.yml`. Reference them using the `${VAR_NAME}` syntax:
+
+```yaml
+environments:
+  default:
+    connections:
+      postgres:
+        - name: my_postgres
+          username: ${POSTGRES_USERNAME}
+          password: ${POSTGRES_PASSWORD}
+          host: "db.example.com"
+          port: 5432
+          database: "analytics"
+```
+
+> [!NOTE]
+> Environment variables are expanded at runtime, not when the file is parsed. This lets you use different values in different deployment environments and integrate with CI/CD secret injection.
+
+## Local vs Cloud
+
+### Local Development
+
+For local development, Bruin reads credentials from your local `.bruin.yml` file. This is the simplest setup:
+
+1. Run `bruin init` to create `.bruin.yml`
+2. Add your connections to the file
+3. Run `bruin run` to execute your pipeline
+
+### Cloud Deployment
+
+When deploying to Bruin Cloud or other environments, you have several options:
+
+1. **Environment Variables**: Reference environment variables in `.bruin.yml` that are set in your deployment environment
+2. **Secret Providers**: Use external secret managers like [HashiCorp Vault](../secrets/vault.md), [Doppler](../secrets/doppler.md), or [AWS Secrets Manager](../secrets/aws-secrets-manager.md)
+3. **CI/CD Integration**: Inject secrets during CI/CD pipeline execution
+
+See the [Deployment](../deployment/overview.md) documentation for platform-specific guidance.
+
+## Schema-Based Environments
+
+For scenarios where separate databases are impractical, Bruin supports schema-based environments. This automatically prefixes schema names to isolate environments within the same database. If the prefix does not end with `_`, Bruin appends it for you.
+
+```yaml
+environments:
+  dev_jane:
+    schema_prefix: jane_
+    connections:
+      postgres:
+        - name: "postgres-dev"
+          # ...connection details...
+```
+
+When running with this environment, an asset named `mart.customers` becomes `jane_mart.customers`.
+
+[Learn more about schema-based environments →](../getting-started/devenv.md#schema-based-environments)
+
+## Related Topics
+
+- [Connections](connections.md) - Configure connections to data platforms
+- [Secrets](secrets.md) - Manage custom credentials and API keys
+- [.bruin.yml Reference](../secrets/bruinyml.md) - Complete configuration reference

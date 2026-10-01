@@ -1,0 +1,10 @@
+name: stripe-databricks-template
+start_date: "2025-01-01"
+default:
+  type: ingestr
+  parameters:
+    source_connection: stripe-default
+    destination: databricks-default
+
+default_connections:
+  databricks: databricks-default

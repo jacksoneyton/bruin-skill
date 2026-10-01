@@ -1,0 +1,329 @@
+# Databricks
+
+Databricks is a unified data analytics platform that provides a collaborative environment for data scientists, data engineers, and business analysts. It is built on top of Apache Spark, which makes it easy to scale and process big data workloads.
+
+Bruin supports Databricks as a data platform.
+
+## Connection
+
+Bruin supports two authentication methods for Databricks:
+
+- **Personal Access Token (PAT)**: Simple token-based authentication
+- **OAuth M2M (Machine-to-Machine)**: Service principal authentication using OAuth 2.0
+
+### Option 1: Personal Access Token (PAT)
+
+```yaml
+    connections:
+      databricks:
+        - name: "connection_name"
+          token: "your-databricks-token"
+          path: "your-databricks-endpoint-path"
+          host: "your-databricks-host"
+          port: 443
+          catalog: "your-databricks-catalog"
+          schema: "your-databricks-schema"
+```
+
+#### Step 1: Generate a token
+
+Click on your Databricks username in the top bar, and then select "Settings" from the dropdown menu. Click on the "Developer" tab in the column "Settings" on the left. Next to "Access tokens," click "Manage." Click the "Generate new token" button. Enter Token Details and click "Generate".
+
+#### Step 2: Retrieve HTTP path (SQL Warehouse URL)
+
+The HTTP path is the connection endpoint for your SQL Warehouse. To retrieve it:
+
+1. In the Databricks workspace, click on **"SQL Warehouses"** in the left sidebar (under the "SQL" section)
+2. Select your SQL warehouse from the list (if you don't have one, you'll need to create a SQL warehouse first)
+3. Click on **"Connection details"** tab at the top of the warehouse details page
+4. Under the "Connection details" section, locate the **"HTTP path"** field
+5. Copy the HTTP path value. It should look something like: `/sql/1.0/warehouses/3748325bf498i274`
+
+>
+> If you have multiple warehouses, make sure to use the correct path for the warehouse you want to connect to.
+
+#### Step 3: Retrieve host (Workspace URL)
+
+The host is your Databricks workspace URL. You can find it in several ways:
+
+- Method 1: Browser address bar
+
+    The host URL is visible in your browser's address bar when you're logged into Databricks.
+
+    It should look like: `{workspace-name}.cloud.databricks.com` or `{workspace-name}.azuredatabricks.net` (for Azure)
+
+- Method 2: From the SQL Warehouse connection details
+
+    In the same "Connection details" tab where you found the HTTP path, the host URL is also displayed in the connection string examples
+
+#### Step 4: Enter port, catalog and schema
+
+Databricks APIs and SQL warehouse endpoints use 443 (HTTPS). So port will usually be 443. The catalog and schema can be found under the section "Catalog" in the bar on the left.
+
+The Databricks configuration in `.bruin.yml` should like something like this:
+
+```yaml
+    connections:
+      databricks:
+        - name: databricks-default
+          token: XXXXXXXXXXXXXXX
+          path: /sql/1.0/warehouses/3748325bf498i274
+          host: dbc-example-host.cloud.databricks.com
+          port: 443
+          catalog: default
+          schema: example_schema
+```
+
+### Option 2: OAuth M2M (Service Principal)
+
+OAuth M2M authentication is recommended for automated workflows and service accounts. It uses a service principal with a client ID and secret instead of a personal access token.
+
+#### Step 1: Create a Service Principal
+
+In your Databricks account console, add a new service principal. Go to the Configuration tab and select the entitlements it should have for your workspace.
+
+#### Step 2: Create an OAuth Secret
+
+On the service principal's details page, open the Secrets tab. Under OAuth secrets, click "Generate secret." Set the secret's lifetime (up to 730 days). Copy the displayed secret and client ID - the secret is only shown once.
+
+#### Step 3: Grant Access to SQL Warehouse
+
+Ensure the service principal has `CAN USE` permission on the SQL warehouse you want to use.
+
+#### Step 4: Configure the Connection
+
+```yaml
+    connections:
+      databricks:
+        - name: databricks-default
+          host: dbc-example-host.cloud.databricks.com
+          path: /sql/1.0/warehouses/3748325bf498i274
+          port: 443
+          catalog: default
+          schema: example_schema
+          client_id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+          client_secret: dosexxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+For more details on OAuth M2M authentication, see the [Databricks documentation](https://docs.databricks.com/en/dev-tools/auth/oauth-m2m.html).
+
+## Databricks Assets
+
+### `databricks.sql`
+
+Runs a materialized Databricks asset or a Databricks SQL script. For detailed parameters, you can check [Definition Schema](../assets/definition-schema.md) page.
+
+Asset names may be `schema.table` or `catalog.schema.table` (Unity Catalog). With a three-part name Bruin auto-creates both the catalog (`CREATE CATALOG IF NOT EXISTS`) and the schema within it, so the connection's principal needs the `CREATE CATALOG` privilege on the metastore.
+
+#### Example: Create a table using table materialization
+
+```bruin-sql
+/* @bruin
+name: events.install
+type: databricks.sql
+materialization:
+    type: table
+@bruin */
+
+select user_id, ts, platform, country
+from analytics.events
+where event_name = "install"
+```
+
+#### Example: Run a script
+
+```bruin-sql
+/* @bruin
+name: events.install
+type: databricks.sql
+@bruin */
+
+create temp table first_installs as
+select 
+    user_id, 
+    min(ts) as install_ts,
+    min_by(platform, ts) as platform,
+    min_by(country, ts) as country
+from analytics.events
+where event_name = "install"
+group by 1;
+
+create or replace table events.install
+select
+    user_id, 
+    i.install_ts,
+    i.platform, 
+    i.country,
+    a.channel,
+from first_installs as i
+join marketing.attribution as a
+    using(user_id)
+```
+
+### `databricks.sensor.query`
+
+Checks if a query returns any results in Databricks, runs by default every 30 seconds until this query returns any results.
+
+```yaml
+name: string
+type: string
+parameters:
+    query: string
+    poke_interval: int (optional)
+    timeout: duration (optional)
+```
+
+**Parameters**:
+
+- `query`: Query you expect to return any results
+- `poke_interval`: The interval between retries in seconds (default 30 seconds).
+- `timeout`: How long to wait before the sensor fails. Uses single-unit duration syntax (`s`, `m`, `h`, `d`, `ms`, `ns`), e.g. `1h` or `90m`. Defaults to `24h`. See [Sensor Timeout](../assets/sensor.md#timeout).
+
+### `databricks.sensor.table`
+
+Sensors are a special type of assets that are used to wait on certain external signals.
+
+Checks if a table exists in Databricks, runs by default every 30 seconds until this table is available.
+
+```yaml
+name: string
+type: string
+parameters:
+    table: string
+    poke_interval: int (optional)
+    timeout: duration (optional)
+```
+
+**Parameters**:
+
+- `table`: `schema_id.table_id` or `catalog_id.schema_id.table_id` format.
+- `poke_interval`: The interval between retries in seconds (default 30 seconds).
+- `timeout`: How long to wait before the sensor fails. Uses single-unit duration syntax (`s`, `m`, `h`, `d`, `ms`, `ns`), e.g. `1h` or `90m`. Defaults to `24h`. See [Sensor Timeout](../assets/sensor.md#timeout).
+
+#### Example: Partitioned upstream table
+
+Checks if the data available in upstream table for end date of the run.
+
+```yaml
+name: analytics_123456789.events
+type: databricks.sensor.query
+parameters:
+    query: select exists(select 1 from upstream_table where dt = "{{ end_date }}")
+```
+
+#### Example: Streaming upstream table
+
+Checks if there is any data after end timestamp, by assuming that older data is not appended to the table.
+
+```yaml
+name: analytics_123456789.events
+type: databricks.sensor.query
+parameters:
+    query: select exists(select 1 from upstream_table where inserted_at > "{{ end_timestamp }}")
+```
+
+### `databricks.seed`
+
+`databricks.seed` is a special type of asset used to represent CSV files that contain data that is prepared outside of your pipeline that will be loaded into your Databricks database. Bruin supports seed assets natively, allowing you to simply drop a CSV file in your pipeline and ensuring the data is loaded to the Databricks database.
+
+You can define seed assets in a file ending with `.asset.yml` or `.asset.yaml`:
+
+```yaml
+name: dashboard.hello
+type: databricks.seed
+
+parameters:
+    path: seed.csv
+```
+
+**Parameters**:
+
+- `path`: The path to the CSV file that will be loaded into the data platform. This can be a relative file path (relative to the asset definition file) or an HTTP/HTTPS URL to a publicly accessible CSV file.
+
+> [!WARNING]
+> When using a URL path, column validation is skipped during `bruin validate`. Column mismatches will be caught at runtime.
+
+#### Examples: Load csv into a Databricks database
+
+The examples below show how to load a CSV into a Databricks database.
+
+```yaml
+name: dashboard.hello
+type: databricks.seed
+
+parameters:
+    path: seed.csv
+```
+
+Example CSV:
+
+```csv
+name,networking_through,position,contact_date
+Y,LinkedIn,SDE,2024-01-01
+B,LinkedIn,SDE 2,2024-01-01
+```
+
+### `databricks.source`
+
+Defines Databricks source assets for documenting existing tables and views in your Databricks database. These assets are no-op (they don't execute), but are useful for:
+
+- Documenting existing Databricks tables and views
+- Adding column descriptions and metadata
+- Establishing lineage relationships
+- Query preview functionality in the VSCode extension
+
+#### Example: Document an existing Databricks table
+
+```yaml
+name: catalog.schema.sales_transactions
+type: databricks.source
+description: "Sales transaction records from all channels"
+connection: databricks-default
+
+tags:
+  - sales
+  - transactions
+  - raw-data
+domains:
+  - revenue
+
+meta:
+  business_owner: "Sales Analytics"
+  data_steward: "sales-data@company.com"
+  refresh_frequency: "daily"
+
+depends:
+  - catalog.schema.customers
+  - catalog.schema.products
+
+columns:
+  - name: transaction_id
+    type: "STRING"
+    description: "Unique identifier for each transaction"
+
+  - name: customer_id
+    type: "STRING"
+    description: "Identifier of the customer who made the purchase"
+
+  - name: amount
+    type: "DECIMAL(10,2)"
+    description: "Total transaction amount"
+
+  - name: transaction_date
+    type: "TIMESTAMP"
+    description: "Date and time of the transaction"
+
+  - name: status
+    type: "STRING"
+    description: "Transaction status (completed, pending, refunded)"
+```
+
+## Query annotations
+
+When query annotations are enabled, Bruin adds the annotation JSON as a `@bruin.config` SQL comment and sends the same fields as native Databricks statement-level query tags. Native tags are available in Databricks query history and `system.query.history.query_tags`.
+
+This applies to asset statements, schema and catalog setup, quality checks, sensors, and ad-hoc queries. Use `--query-annotations default` for Bruin's standard fields, or provide a JSON object with additional fields:
+
+```shell
+bruin run path/to/pipeline --query-annotations '{"environment":"prod","team":"data"}'
+```

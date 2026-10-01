@@ -1,0 +1,580 @@
+# Python Assets
+
+Bruin takes the Python data development experience to the next level:
+
+- Bruin runs assets in isolated environments: mix and match Python versions & dependencies
+- It installs & manages Python versions automatically, so you don't have to have anything installed
+- You can return dataframes and it uploads them to your destination
+- You can run quality checks on it just as a regular asset
+
+Bruin uses the amazing [`uv`](https://astral.sh/uv) under the hood to abstract away all the complexity.
+
+Python assets are built to be as flexible as possible. You can use any Python package you want, as long as it is installable with `pip`.
+
+```bruin-python
+"""@bruin
+name: tier1.my_custom_api
+image: python:3.13
+connection: bigquery
+
+materialization:
+  type: table
+  strategy: merge
+
+columns:
+  - name: col1
+    type: integer
+    checks:
+      - name: unique
+      - name: not_null
+@bruin"""
+
+import pandas as pd
+
+def materialize():
+    items = 100000
+    df = pd.DataFrame({
+        'col1': range(items),
+        'col2': [f'value_new_{i}' for i in range(items)],
+        'col3': [i * 6.0 for i in range(items)]
+    })
+
+    return df
+```
+
+## Dependency Management
+
+Bruin supports two ways of managing Python dependencies:
+
+1. **`pyproject.toml` with `uv.lock`** (recommended)
+2. **`requirements.txt`** (legacy)
+
+Bruin searches for dependency files by walking up the directory tree from the asset's location to the repository root. If both `requirements.txt` and `pyproject.toml` exist in the same search path, `requirements.txt` takes priority for backward compatibility.
+
+### Using `pyproject.toml` (Recommended)
+
+The recommended way to manage dependencies is with a standard `pyproject.toml` file. This gives you access to `uv`'s full dependency resolution, including lockfile support via `uv.lock`.
+
+```text
+my-pipeline/
+    assets/
+        fetch_data.py
+    pyproject.toml
+    uv.lock
+    pipeline.yml
+```
+
+A minimal `pyproject.toml` looks like this:
+
+```toml
+[project]
+name = "my-pipeline"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0.0",
+    "requests>=2.28.0",
+]
+```
+
+When Bruin finds a `pyproject.toml`, it runs `uv run` from the project directory, which automatically:
+- Installs dependencies defined in `pyproject.toml`
+- Uses `uv.lock` for reproducible builds if present
+- Syncs the project environment before running your asset
+
+#### Locking dependencies
+
+You can lock your dependencies to ensure reproducible builds across environments:
+
+```shell
+bruin internal lock-asset-dependencies assets/fetch_data.py
+```
+
+When a `pyproject.toml` is detected, this runs `uv lock` in the project directory, generating or updating the `uv.lock` file. You should commit `uv.lock` to version control.
+
+You can also run `uv lock` directly from the project directory:
+
+```shell
+cd my-pipeline && uv lock
+```
+
+### Using `requirements.txt`
+
+You can also manage dependencies with `requirements.txt` files. Bruin searches for the closest `requirements.txt` file by walking up the directory tree from the asset's location.
+
+For example, assume you have a file tree such as:
+
+```text
+* folder1/
+    * folder2/
+        * test.py
+        * requirements.txt
+    * folder3/
+        * test2.py
+    * requirements.txt
+* folder4/
+    * folder5/
+        * folder6/
+            * test3.py
+* requirements.txt
+```
+
+- When Bruin runs `test.py`, it will use `folder1/folder2/requirements.txt`, since they are in the same folder.
+- For `test2.py`, since there is no `requirements.txt` in the same folder, Bruin goes up one level in the tree and finds `folder1/requirements.txt`.
+- Similarly, `requirements.txt` in the main folder is used for `test3.py` since none of `folder6`, `folder5` and `folder4` have any `requirements.txt` files.
+
+#### Locking dependencies
+
+You can lock `requirements.txt` dependencies using:
+
+```shell
+bruin internal lock-asset-dependencies assets/test.py
+```
+
+This runs `uv pip compile` to resolve and pin all dependency versions in-place.
+
+### Resolution priority
+
+When both `requirements.txt` and `pyproject.toml` exist in the search path, Bruin uses the following priority:
+
+1. **`requirements.txt`** — checked first for backward compatibility
+2. **`pyproject.toml`** — used if no `requirements.txt` is found
+3. **No dependencies** — if neither file is found, the asset runs without dependency installation
+
+## Python versions
+
+Bruin supports various Python versions in the same pipeline, all running in isolated environments. The resolved dependencies will be installed correctly for the corresponding Python version without impacting each other.
+
+You can define Python versions using the `image` key:
+
+```bruin-python
+"""@bruin
+name: tier1.my_custom_api
+image: python:3.13
+@bruin"""
+
+print('hello world')
+```
+
+## Secrets
+
+Bruin supports injecting connections into your Python assets as environment variables.
+
+You can define secrets in your asset definition using the `secrets` key, and Bruin will automatically make them available as environment variables during execution.
+The injected secret is a JSON representation of the connection model.
+
+This is useful for API keys, passwords, and other sensitive information.
+
+```bruin-python [secret.py]
+"""@bruin
+name: tier1.my_custom_api
+secrets:
+    - key: connection_name
+@bruin"""
+
+import os
+
+my_secret = os.environ["connection_name"]
+# Use your secret in your code
+```
+
+By default, secrets are injected as environment variables using the key name. If you want to inject a secret under a different environment variable name, you can use the `inject_as` field:
+
+```bruin-python [secret_renamed.py]
+"""@bruin
+name: tier1.my_custom_api
+secrets:
+    - key: connection_name
+      inject_as: creds #[!code ++]
+@bruin"""
+
+import os
+
+my_secret = os.environ["creds"] #[!code warning]
+# Use your secret in your code
+```
+
+This allows you to map a secret key to any environment variable name you prefer inside your Python code.
+
+## Environment Variables
+
+Bruin introduces a set of environment variables by default to every Python asset.
+
+### Builtin
+
+The following environment variables are available in every Python asset execution:
+
+| Environment Variable    | Description                                                                                                       |
+|:------------------------|:------------------------------------------------------------------------------------------------------------------|
+| `BRUIN_START_DATE`      | The start date of the pipeline run in `YYYY-MM-DD` format (e.g. `2024-01-15`)                                     |
+| `BRUIN_START_DATETIME`  | The start date and time of the pipeline run in `YYYY-MM-DDThh:mm:ss` format (e.g. `2024-01-15T13:45:30`)          |
+| `BRUIN_START_TIMESTAMP` | The start timestamp of the pipeline run in RFC3339 format with timezone (e.g. `2024-01-15T13:45:30.000000Z07:00`) |
+| `BRUIN_END_DATE`        | The end date of the pipeline run in `YYYY-MM-DD` format (e.g. `2024-01-15`)                                       |
+| `BRUIN_END_DATETIME`    | The end date and time of the pipeline run in `YYYY-MM-DDThh:mm:ss` format (e.g. `2024-01-15T13:45:30`)            |
+| `BRUIN_END_TIMESTAMP`   | The end timestamp of the pipeline run in RFC3339 format with timezone (e.g. `2024-01-15T13:45:30.000000Z07:00`)   |
+| `BRUIN_EXECUTION_DATE`      | The execution date of the pipeline run in `YYYY-MM-DD` format (e.g. `2024-01-15`)                                 |
+| `BRUIN_EXECUTION_DATETIME`  | The execution date and time of the pipeline run in `YYYY-MM-DDThh:mm:ss` format (e.g. `2024-01-15T13:45:30`)      |
+| `BRUIN_EXECUTION_TIMESTAMP` | The execution timestamp of the pipeline run in RFC3339 format with timezone (e.g. `2024-01-15T13:45:30.000000Z07:00`) |
+| `BRUIN_RUN_ID`          | The unique identifier for the pipeline run                                                                        |
+| `BRUIN_PIPELINE`        | The name of the pipeline being executed                                                                           |
+| `BRUIN_FULL_REFRESH`    | Set to `1` when the run uses `--full-refresh` or the asset sets `parameters.full_refresh: true`, empty otherwise |
+| `BRUIN_COMMIT_HASH`    | The current git commit hash (`git rev-parse HEAD`) of the repository containing the pipeline                     |
+| `BRUIN_ASSET`            | The name of the current Python asset (alias for `BRUIN_THIS`)                                                      |
+| `BRUIN_THIS`             | The name of the current Python asset                                                                              |
+| `BRUIN_CONNECTION`       | The connection name configured for the asset (only set if the asset has a `connection` defined)                   |
+| `BRUIN_CONNECTION_TYPES` | JSON object mapping secret injection keys to their connection types (e.g., `{"DATABASE": "postgres"}`). Only set if secrets are defined |
+| `BRUIN_VARS`            | JSON document containing all pipeline variables (see [Pipeline Variables](#pipeline) section below)              |
+| `BRUIN_VARS_SCHEMA`     | JSON document containing the schema definition for pipeline variables (see [Variables](../variables/overview.md)) |
+| `PYTHONUNBUFFERED`      | Set to `1` to enable unbuffered Python output for real-time logging                                               |
+
+### Pipeline
+
+Bruin supports user-defined variables at a pipeline level. These become available as JSON documents in your python asset:
+- `BRUIN_VARS`: Contains the actual variable values
+- `BRUIN_VARS_SCHEMA`: Contains the JSON Schema definition for the variables (useful for validation and type checking)
+
+When no variables exist, both `BRUIN_VARS` and `BRUIN_VARS_SCHEMA` are set to `{}`. See [Variables](../variables/overview.md) for more information on how to define and override them, including the [full list of JSON Schema `type` options and complementary keywords](../variables/custom.md).
+
+Here's a short example:
+
+```yaml [pipeline.yml]
+name: pipeline-with-variables
+variables:
+  target_segment:
+    type: string
+    enum: ["self_serve", "enterprise", "partner"]
+    default: "enterprise"
+  forecast_horizon_days:
+    type: integer
+    minimum: 7
+    maximum: 90
+    default: 30
+  experiment_cohorts:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [name, weight, channels]
+      properties:
+        name:
+          type: string
+        weight:
+          type: number
+        channels:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+    default:
+      - name: enterprise_baseline
+        weight: 0.6
+        channels: ["email", "customer_success"]
+      - name: partner_campaign
+        weight: 0.4
+        channels: ["webinar", "email"]
+```
+
+```bruin-python [asset.py]
+""" @bruin
+name: inspect_segments
+@bruin """
+
+import os
+import json
+
+vars = json.loads(os.environ.get("BRUIN_VARS"))
+
+print("target_segment:", vars["target_segment"])            # target_segment: enterprise
+print("forecast_horizon_days:", vars["forecast_horizon_days"])  # forecast_horizon_days: 30
+
+for cohort in vars["experiment_cohorts"]:
+    print(cohort["name"], cohort["weight"], cohort["channels"])
+    # enterprise_baseline 0.6 ['email', 'customer_success']
+    # partner_campaign 0.4 ['webinar', 'email']
+```
+
+> **Tip**
+>
+> You can override the value of variables at runtime using the `--var` [flag](../variables/overview.md#overriding-variables-at-runtime).
+
+## Materialization
+
+Bruin runs regular Python scripts by default; however, quite often teams need to load data into a destination from their Python scripts. Bruin supports materializing the data returned by a Python script into a data warehouse.
+
+The requirements to get this working are:
+
+- define a `materialization` config in the asset definition
+- define a `connection` in the asset definition (required for Python assets with `materialization.type: table`)
+- have a function called `materialize` in your Python script that returns a pandas/polars dataframe, a PyArrow table, a list of dicts, a generator that yields dicts, or a generator that yields PyArrow tables.
+
+Supported materialization strategies for Python assets are: `create+replace`, `append`, `merge`, and `delete+insert`. The `time_interval` strategy is not supported for Python assets.
+
+> [!WARNING]
+> This feature has been very recently introduced, and is not battle-tested yet. Please create an issue if you encounter any bugs.
+
+```bruin-python
+"""@bruin
+name: tier1.my_custom_api
+image: python:3.13
+connection: bigquery
+
+materialization:
+  type: table
+  strategy: merge
+ 
+columns:
+    - name: col1
+      primary_key: true
+@bruin"""
+
+import pandas as pd
+
+def materialize(**kwargs):
+    items = 100000
+    df = pd.DataFrame({
+        'col1': range(items),
+        'col2': [f'value_new_{i}' for i in range(items)],
+        'col3': [i * 6.0 for i in range(items)]
+    })
+
+    return df
+```
+
+### Returning Arrow data
+
+If your data is already in Apache Arrow form, you can return a `pyarrow.Table` directly. You can also yield multiple tables when data is produced in chunks:
+
+```bruin-python [Returning a PyArrow table]
+"""@bruin
+name: tier1.arrow_table
+image: python:3.13
+connection: bigquery
+
+materialization:
+  type: table
+  strategy: append
+@bruin"""
+
+import pyarrow as pa
+
+def materialize():
+    return pa.table({
+        "id": [1, 2, 3],
+        "name": ["Alice", "Bob", "Charlie"],
+    })
+```
+
+```bruin-python [Yielding PyArrow tables]
+"""@bruin
+name: tier1.arrow_table_chunks
+image: python:3.13
+connection: bigquery
+
+materialization:
+  type: table
+  strategy: append
+@bruin"""
+
+import pyarrow as pa
+
+def materialize():
+    yield pa.table({"id": [1, 2], "name": ["Alice", "Bob"]})
+    yield pa.table({"id": [3, 4], "name": ["Charlie", "Diana"]})
+```
+
+When yielding multiple PyArrow tables, all yielded tables must have the same schema.
+
+### Using generators
+
+You can use `yield` in your `materialize()` function to produce data incrementally. This is useful when fetching data from paginated APIs or processing data in chunks. You can yield individual dicts or batches (lists of dicts):
+
+```bruin-python [Yielding individual dicts]
+"""@bruin
+name: tier1.paginated_api
+image: python:3.13
+connection: bigquery
+
+materialization:
+  type: table
+  strategy: append
+@bruin"""
+
+import requests
+
+def materialize():
+    page = 1
+    while True:
+        resp = requests.get(f"https://api.example.com/data?page={page}")
+        items = resp.json()["items"]
+        if not items:
+            break
+        for item in items:
+            yield item
+        page += 1
+```
+
+```bruin-python [Yielding batches]
+"""@bruin
+name: tier1.paginated_api_batch
+image: python:3.13
+connection: bigquery
+
+materialization:
+  type: table
+  strategy: append
+@bruin"""
+
+import requests
+
+def materialize():
+    page = 1
+    while True:
+        resp = requests.get(f"https://api.example.com/data?page={page}")
+        items = resp.json()["items"]
+        if not items:
+            break
+        yield items  # yield the entire page as a batch
+        page += 1
+```
+
+Each yielded value is written to disk as its own Arrow batch as it is produced, so a generator never has to hold the full dataset in memory at once. The batch granularity is exactly what you yield: yielding individual dicts produces one row per batch, while yielding a list of dicts writes that whole page as a single batch. This makes generators the recommended way to materialize large datasets that would otherwise exhaust memory. All yielded rows must share the same schema, just like yielded PyArrow tables.
+
+If `materialize()` returns `None`, Bruin will skip materialization with a warning instead of failing the pipeline. This is useful when there is no data to materialize for a given run.
+
+### Under the hood
+
+Bruin uses Apache Arrow under the hood to keep the returned data efficiently, and uses [ingestr](https://github.com/bruin-data/ingestr) to upload the data to the destination. The workflow goes like this:
+
+- install the asset dependencies using `uv`
+- run the `materialize` function of the asset
+- save the returned data into a temporary file using Arrow memory-mapped files
+- run ingestr to load the Arrow memory-mapped file into the destination
+- delete the memory-mapped file
+
+This flow ensures that the typing information gathered from the dataframe will be preserved when loading to the destination, and it supports incremental loads, deduplication, and all the other features of ingestr.
+
+### Enforcing column types
+
+By default, ingestr infers column types from the dataframe. If you want to enforce specific column types in the destination table, you can use the `enforce_schema` parameter along with column definitions:
+
+```bruin-python
+"""@bruin
+name: tier1.users_api
+image: python:3.13
+connection: bigquery
+
+materialization:
+  type: table
+  strategy: merge
+
+parameters:
+  enforce_schema: true
+
+columns:
+  - name: id
+    type: integer
+    primary_key: true
+  - name: name
+    type: string
+  - name: email
+    type: string
+  - name: created_at
+    type: timestamp
+@bruin"""
+
+import pandas as pd
+
+def materialize():
+    # Fetch data from API
+    return pd.DataFrame({
+        'id': [1, 2, 3],
+        'name': ['Alice', 'Bob', 'Charlie'],
+        'email': ['alice@example.com', 'bob@example.com', 'charlie@example.com'],
+        'created_at': pd.to_datetime(['2024-01-01', '2024-01-02', '2024-01-03'])
+    })
+```
+
+When `enforce_schema: true` is set, Bruin passes the column type hints to ingestr, ensuring the destination table schema matches your definition rather than relying on type inference.
+
+## Column-level lineage
+
+Bruin supports column-level lineage for Python assets as well as SQL assets. In order to get column-level lineage, you need to annotate the columns that are exposed by the Bruin asset.
+
+```bruin-python
+""" @bruin
+name: myschema.my_mat_asset 
+materialization:
+  type: table
+  strategy: merge
+
+columns:
+    - name: col1
+      type: int
+      upstreams:       # [!code ++]
+        - table: xyz   # [!code ++]
+          column: col1 # [!code ++]
+
+@bruin """
+
+import pandas as pd
+
+def materialize():
+    items = 100000
+    df = pd.DataFrame({
+        'col1': range(items),
+        'col2': [f'value_new_{i}' for i in range(items)],
+        'col3': [i * 6.0 for i in range(items)]
+    })
+
+    return df
+```
+
+Bruin will use the annotations to build the column-lineage dependency across all of your assets, including those extracted from SQL automatically.
+
+## Examples
+
+### Print hello world
+
+```bruin-python
+""" @bruin
+name: hello_world
+@bruin """
+
+print("Hello World!")
+```
+
+### Ingest data to BigQuery via an API manually
+
+```bruin-python
+""" @bruin
+name: raw_data.currency_rates
+type: python
+parameters:
+    loader_file_format: jsonl
+secrets:
+    - key: bigquery_conn
+@bruin """
+
+import os
+import currency_rates
+import pandas as pd
+import json
+from google.cloud import bigquery
+
+# Bruin injects secrets as a JSON string.
+# This function takes a connection name and returns a BigQuery client
+def get_bq_client(conn_name: str) -> bigquery.Client:
+    serv_acc = json.loads(os.environ[conn_name])
+    return bigquery.Client.from_service_account_info(
+        json.loads(serv_acc["service_account_json"]), 
+        project=serv_acc["project_id"]
+    )
+
+START_DATE = os.environ["BRUIN_START_DATE"]
+END_DATE = os.environ["BRUIN_END_DATE"]
+
+bq_client = get_bq_client("bigquery_conn")
+df = currency_rates.get_rates(start=START_DATE, end=END_DATE)
+
+df.to_gbq("raw_data.currency_rates", if_exists="replace", credentials=bq_client._credentials)
+```

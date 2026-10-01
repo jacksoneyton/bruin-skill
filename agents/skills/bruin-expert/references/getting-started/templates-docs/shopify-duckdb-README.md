@@ -1,0 +1,96 @@
+# Bruin - Shopify to DuckDB Template
+
+This pipeline is a simple example of a Bruin pipeline that copies data from Shopify to DuckDB. It demonstrates how to use the `bruin` CLI to build and run a pipeline.
+
+The pipeline includes two sample assets already:
+
+- `raw.shopify`: A simple ingestr asset that copies a table from Shopify to DuckDB
+
+## Setup
+
+Add your connections and environments to the `.bruin.yml` file at your project root, not inside the pipeline folder. You can read more about connections [here](../../commands/connections.md).
+
+Here's a sample `.bruin.yml` file:
+
+```yaml
+default_environment: default
+environments:
+    default:
+        connections:
+            duckdb:
+                - name: "duckdb-default"
+                  path: "<path to database>"
+
+            shopify:
+                - name: "shopify-default"
+                  api_key: "********"
+                  url: "******.myshopify.com"
+```
+
+Alternatively, you can authenticate using OAuth credentials (`client_id` and `client_secret`) instead of an `api_key`:
+
+```yaml
+default_environment: default
+environments:
+    default:
+        connections:
+            duckdb:
+                - name: "duckdb-default"
+                  path: "<path to database>"
+
+            shopify:
+                - name: "shopify-default"
+                  url: "******.myshopify.com"
+                  client_id: "your_client_id"
+                  client_secret: "your_client_secret"
+```
+
+## Running the pipeline
+
+Run these commands from the pipeline directory.
+
+Bruin CLI can run the whole pipeline or any task with the downstreams:
+
+```shell
+bruin run .
+```
+
+You can also run a single task:
+
+```shell
+bruin run assets/shopify.orders.asset.yml
+```
+
+You can optionally pass a `--downstream` flag to run the task with all of its downstreams.
+
+That's it, good luck!
+
+- Balance Table
+
+```yaml
+name: shopify_raw.balance
+type: ingestr
+
+description: This asset manages the ingestion of Shopify customer data into BigQuery. It captures comprehensive customer information including personal details, contact information, order history, marketing preferences, and address data. The asset includes data quality checks to ensure critical fields like customer ID and email are properly populated.
+
+parameters:
+  source_connection: shopify-default
+  source_table: balance
+  destination: duckdb
+
+```
+
+- Transactions Table
+
+```yaml
+name: shopify_raw.transactions
+type: ingestr
+
+description: This asset manages the ingestion of Shopify transaction data into BigQuery. It captures detailed payment transaction information including transaction ID, order ID, amount, currency, payment method, status, and processed date. This data is essential for financial reporting, reconciliation, and analyzing payment patterns across the Shopify store.
+
+parameters:
+  source_connection: shopify-default
+  source_table: transactions
+  destination: duckdb
+
+```

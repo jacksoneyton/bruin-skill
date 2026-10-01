@@ -1,0 +1,371 @@
+# `run` Command
+
+To split a historical range into resumable partitions, use [`bruin backfill`](backfill.md).
+
+This command is used to execute a Bruin pipeline or a specific asset within a pipeline.
+
+- You can run the pipeline from the current directory or a specific path to the pipeline/asset definition.
+- If you don't specify a path, Bruin will run the pipeline from the current directory.
+- If you specify a path, Bruin will run the pipeline/asset from the directory of the file.
+  - Bruin will try to infer if the given path is a pipeline or an asset and will run accordingly.
+- You can give specific start and end dates to run the pipeline/asset for a specific range.
+- You can limit the types of execution steps to run by using the `--only` flag.
+  - E.g. only run the quality checks: `bruin run --only checks`
+
+```bash
+bruin run [FLAGS] [optional path to the pipeline/asset]
+```
+
+Bruin omits ANSI color codes when `--no-color` is passed, when the `NO_COLOR` environment variable is set, or when standard output is not a terminal.
+
+*[image: Bruin - init]*
+
+## Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--downstream` | bool | `false` | Run all downstream assets as well. |
+| `--workers` | int | `16` | Number of workers to run assets in parallel. |
+| `--start-date` | str | Beginning of yesterday | The start date of the range the pipeline will run for. Format: `YYYY-MM-DD`, `YYYY-MM-DD HH:MM:SS`, or `YYYY-MM-DD HH:MM:SS.ffffff` |
+| `--end-date` | str | End of yesterday | The end date of the range the pipeline will run for. Format: `YYYY-MM-DD`, `YYYY-MM-DD HH:MM:SS`, or `YYYY-MM-DD HH:MM:SS.ffffff` |
+| `--environment` | str | - | The environment to use. |
+| `--push-metadata` | bool | `false` | Push metadata to the destination database if supported (currently BigQuery). |
+| `--force` | bool | `false` | Do not ask for confirmation in a production environment. |
+| `--no-log-file` | bool | `false` | Do not create a log file for this run. |
+| `--sensor-mode` | str | `'once'` | Set sensor mode: `skip`, `once`, or `wait`. |
+| `--full-refresh` | bool | `false` | Truncate tables before running. Also sets the `full_refresh` Jinja variable to `True` and `BRUIN_FULL_REFRESH` to `1`. A single asset can opt in on every run with `parameters.full_refresh: true`. |
+| `--apply-interval-modifiers` | bool | `false` | Apply [interval modifiers](../assets/interval-modifiers.md). Off by default on the CLI because you pass the dates yourself; Bruin Cloud applies them automatically. Ignored together with `--full-refresh`. |
+| `--continue` | bool | `false` | Continue from the last failed asset. |
+| `--selector` | str | - | Select assets with dbt-style syntax. Supports `tag:`, `path:`, `file:`, `fqn:`, `+`, `n+`, `@`, space unions, and comma intersections. |
+| `--tag` | str | - | Pick assets with the given tag. |
+| `--single-check` | str | - | Run a single column or custom check by ID. |
+| `--exclude-tag` | str | - | Exclude assets with the given tag. |
+| `--only` | []str | `'main', 'checks', 'push-metadata'` | Limit the types of execution steps to run. By default it runs `main` and `checks`, while `push-metadata` is optional if defined in the pipeline definition. |
+| `--exp-use-winget-for-uv` | bool | `false` | Use PowerShell to manage and install `uv` on Windows. Has no effect on non-Windows systems. |
+| `--use-pip` | bool | `false` | Deprecated compatibility flag; passing it now returns an explicit deprecation error. Python execution is uv-only. |
+| `--debug-ingestr-src` | str | - | Use ingestr from the given path instead of the builtin version. |
+| `--config-file` | str | - | The path to the `.bruin.yml` file. |
+| `--secrets-backend` | str | - | The source of secrets if different from .bruin.yml. Possible values: `vault`, `doppler`, `aws`, `azure`. Can also be set via `BRUIN_SECRETS_BACKEND` environment variable. |
+| `--mask-credentials` | bool | `true` | Redact connection credential values from the run logs. On by default; set `--mask-credentials=false` to disable. |
+| `--no-validation` | bool | `false` | Skip validation for this run. |
+| `--no-timestamp` | bool | `false` | Skip logging timestamps for this run. |
+| `--no-color` | bool | `false` | Plain log output for this run. |
+| `--verbose` | bool | `false` | Print verbose output including SQL queries. |
+| `--interactive`, `-i` | bool | `false` | Use an interactive TUI that shows live progress of asset execution. |
+| `--timeout` | int | `604800` | Timeout for the entire pipeline run in seconds. |
+| `--var` | []str | - | Override pipeline [variables](../variables/overview.md) with custom values. |
+| `--variant` | str | - | Materialize the named [variant](../pipelines/variants.md) of a variant-bearing pipeline. Required when the pipeline declares variants. |
+| `--query-annotations` | str | - | Attach annotations to SQL queries for tracking. Use `default` to add asset name, pipeline name, and execution step, or provide custom JSON for additional fields. |
+| `--backfill-id` | str | - | Tag this run as part of a backfill group; written to the run log as `backfill_id` so related runs can be grouped. |
+| `--backfill-total` | int | `0` | Total number of chunks in this backfill; written to the run log as `backfill_total` so progress can be reported. Informational only — it does not affect scheduling or execution. |
+
+### Backfill identity in the run log
+
+A backfill is run as several `bruin run` invocations, one per interval window. Passing the same `--backfill-id` (and `--backfill-total`) to each lets a consumer group them and report progress. Both are recorded as top-level fields in the run log (`logs/runs/<pipeline>/<run-id>.json`):
+
+```json
+{
+  "run_id": "bf_2024_q1__2024_01_01_00_00_00",
+  "backfill_id": "bf_2024_q1",
+  "backfill_total": 24,
+  "parameters": { "startDate": "2024-01-01", "endDate": "..." }
+}
+```
+
+Group `logs/runs/**/*.json` by `backfill_id`, use `backfill_total` as the denominator, and report `ranCount / total`.
+
+When `--backfill-id` is set, the `run_id` is composed as `<backfill-id>__<start-date>` (mirroring Bruin Cloud's per-chunk run ids); each chunk's distinct start date keeps it unique, so the logs never overwrite each other. Without the flags, behavior is unchanged: both fields are omitted and `run_id` keeps its normal timestamp format. `BRUIN_RUN_ID` still overrides the generated id.
+
+### Continue from the last failed asset
+
+If you want to continue from the last failed asset, you can use the `--continue` flag. This will run the pipeline/asset from the last failed asset. Bruin will automatically retrieve all the flags used in the last run.
+
+```bash
+bruin run --continue 
+```
+
+> [!NOTE]
+> This will only work if the pipeline structure is not changed. If the pipeline structure has changed in any way, including asset dependencies, you will need to run the pipeline/asset from the beginning. This is to ensure that the pipeline/asset is run in the correct order.
+
+### Focused Runs: Filtering by Tags and Execution Types
+
+As detailed in the flag section above, the  `--tag`, `--downstream`, `--exclude-tag`, and `--only` flags provide powerful ways to filter and control which assets and execution steps in your pipeline are executed. These flags can also be combined to fine-tune pipeline runs, allowing you to execute specific subsets of assets based on tags, include their downstream dependencies, and restrict execution to certain execution types.
+
+Before execution, Bruin runs asset-level validation only for assets with pending tasks. Assets excluded by filters such as `--tag` or `--exclude-tag` skip these checks, including dependency validation. Selected assets must still declare dependencies that exist in the pipeline, even if those upstream assets will not execute. Pipeline-wide checks still run. Use `bruin validate` to check the full pipeline independently of a run.
+
+Let's explore how combining these flags enables highly targeted pipeline execution scenarios:
+
+### dbt-style Selectors
+
+Use `--selector` when you want dbt-like asset targeting in a Bruin pipeline:
+
+```bash
+bruin run --selector "tag:nightly"
+bruin run --selector "+fct_orders"
+bruin run --selector "path:assets/marts,tag:finance"
+bruin run --selector "@fct_orders"
+```
+
+`--selector` supports:
+
+- `tag:`, `path:`, `file:`, and `fqn:` methods
+- `+asset`, `asset+`, and `2+asset+1` graph expansion
+- `@asset` to include descendants and the ancestors they need
+- Space-delimited unions and comma-delimited intersections
+
+`--selector` cannot be combined with `--tag`, `--downstream`, positional asset arguments, or single-asset runs. Use selector syntax directly for those cases.
+
+#### AND / OR logic with tags
+
+The selector grammar gives you both AND and OR when targeting assets by tag:
+
+- **Space = union (OR):** an asset matches if it satisfies *any* of the space-separated terms.
+- **Comma = intersection (AND):** an asset matches only if it satisfies *all* of the comma-separated terms.
+
+```bash
+# OR — assets tagged finance OR marketing
+bruin run --selector "tag:finance tag:marketing"
+
+# AND — assets tagged with BOTH daily AND critical
+bruin run --selector "tag:daily,tag:critical"
+
+# Mix — (daily AND critical) OR anything tagged adhoc
+bruin run --selector "tag:daily,tag:critical tag:adhoc"
+```
+
+Because comma is an intersection, an AND expression only matches when a single asset carries every listed tag. If no asset has all of them, the selector matches nothing.
+
+#### Combining tags with graph expansion
+
+Tag terms compose with the `+`, `n+`, and `@` graph operators, so you can pull in a tag's lineage as well:
+
+```bash
+# Everything tagged finance, plus all of their downstream assets
+bruin run --selector "tag:finance+"
+
+# Everything tagged finance, plus all of their upstream dependencies
+bruin run --selector "+tag:finance"
+
+# Upstream lineage of fct_orders, narrowed to only the finance-tagged assets in it
+bruin run --selector "+fct_orders,tag:finance"
+
+# Finance-tagged assets and their immediate (one level) downstream only
+bruin run --selector "tag:finance+1"
+```
+
+#### Tag wildcards
+
+Tag matching supports glob wildcards (`*`, `?`, `[...]`), which is handy for tag naming conventions:
+
+```bash
+# Any asset whose tag starts with "team_"
+bruin run --selector "tag:team_*"
+
+# Union of a wildcard tag and an exact tag
+bruin run --selector "tag:layer_* tag:critical"
+```
+
+### Combining Tags and Execution Types
+
+Using `--tag` with `--only` restricts the execution steps to specific types for the assets filtered by the given tag. For example:
+
+```bash
+bruin run --tag quality_tag --only checks
+```
+
+This runs only the `checks` execution step for the assets tagged with `quality_tag` while excluding other execution types.
+
+### Combining Exclude Tag and Execution Types
+
+Using `--exclude-tag` with `--only` allows you to run specific execution types while excluding assets with certain tags. For example:
+
+```bash
+bruin run --exclude-tag quality_tag --only checks
+```
+
+This runs the `checks` execution step for all assets EXCEPT those tagged with `quality_tag`. This is useful when you want to skip certain assets while running specific execution types.
+
+### Combining Tag and Exclude-Tag
+
+Using `--tag` with `--exclude-tag` allows you to include specific assets and then exclude certain ones based on another tag. For example:
+
+```bash
+bruin run --tag important_tag --exclude-tag quality_tag
+```
+
+This command will run assets tagged with `important_tag` but will exclude those that also have the `quality_tag`. This is useful for focusing on a subset of assets while excluding others that meet certain criteria.
+
+### Combining Downstream and Other Filtering Flags
+
+The `--downstream` flag can be used when running a single asset. You can combine it with other flags like `--exclude-tag` and `--only` to refine execution. For example:
+
+- **Using `--downstream` with `--exclude-tag`:**
+
+  ```bash
+  bruin run --downstream --exclude-tag quality_tag
+  ```
+
+  This command will run a single asset and exclude any assets tagged with `quality_tag`.
+
+- **Using `--downstream` with `--only`:**
+
+  ```bash
+  bruin run --downstream --only checks
+  ```
+
+  This command will run only the `checks` execution step for a single asset, allowing you to focus on specific execution types.
+
+These combinations provide flexibility in managing task execution by allowing you to exclude certain assets or focus on specific task types while using the `--downstream` flag.
+
+## Examples
+
+Run the pipeline from the current directory:
+
+```bash
+bruin run
+```
+
+Run the pipeline from a file:
+
+```bash
+bruin run ./pipelines/project1/pipeline.yml
+```
+
+Run a specific asset:
+
+```bash
+bruin run ./pipelines/project1/assets/my_asset.sql
+```
+
+Run the pipeline with a specific environment:
+
+```bash
+bruin run --environment dev
+```
+
+Run the pipeline with a specific start and end date:
+
+```bash
+bruin run --start-date 2024-01-01 --end-date 2024-01-31
+```
+
+Run the assets in the pipeline that contain a specific tag:
+
+```bash
+bruin run --tag my_tag
+```
+
+Run a dbt-style selector:
+
+```bash
+bruin run --selector "+fct_orders,tag:finance"
+```
+
+Run only the quality checks:
+
+```bash
+bruin run --only checks
+```
+
+Run only the main execution step and not the quality checks:
+
+```bash
+bruin run --only main
+```
+
+Run with full refresh to reprocess all historical data:
+
+```bash
+bruin run --full-refresh
+```
+
+> [!TIP]
+> You can protect assets from being dropped during full refresh by setting `full_refresh_restricted: true` in an asset definition, or for an entire environment under `.bruin.yml` `config.full_refresh_restricted`. Asset-level `refresh_restricted` is still supported as an alias. See [Materialization](../assets/materialization.md#full-refresh-and-full-refresh-restricted) for more details.
+
+Run with default query annotations:
+
+```bash
+bruin run path/to/your/asset.sql --query-annotations default
+```
+
+Run with custom JSON annotations:
+
+```bash
+bruin run path/to/your/asset.sql --query-annotations '{"environment":"prod","team":"data","version":"1.2"}'
+```
+
+Bruin merges the custom JSON with fields that identify the execution step. The standard fields depend on the query being executed:
+
+| Execution step | Standard annotation fields |
+|----------------|----------------------------|
+| Main asset statement | `asset`, `pipeline`, `type: main` |
+| Automatic Databricks schema/catalog setup | `asset`, `pipeline`, `type: schema` |
+| Query or table sensor probe | `asset`, `pipeline`, `type: sensor`, `sensor_type: query\|table` |
+| Column quality check | `asset`, `asset_name`, `pipeline`, `type: column_check`, `column_name`, `column_check_type` |
+| Custom quality check | `asset`, `asset_name`, `pipeline`, `type: custom_check`, `custom_check_name` |
+
+Annotations are applied to every rendered statement in a multi-statement asset, including materialization and hook statements. User-provided fields override standard fields with the same name.
+
+Databricks sends the same fields as native statement-level query tags in addition to the SQL annotation comment, so they are available in Databricks query history and `system.query.history.query_tags`.
+
+## Metadata Push
+
+Metadata push is a feature that allows you to push metadata to the destination database/data catalog if supported. Currently, we support BigQuery and Postgres as the catalog.
+
+There are two ways to push metadata:
+
+1. You can set the `--push-metadata` flag to `true` when running the pipeline/asset.
+2. You can fill out the `metadata_push` dictionary in the pipeline/asset definition.
+
+```yaml
+# pipeline.yml
+name: bruin-init
+schedule: daily
+start_date: "2024-09-01"
+
+default_connections:
+   google_cloud_platform: "my-gcp-connection"
+
+metadata_push:
+  bigquery: true 
+```
+
+When pushing the metadata, Bruin will detect the right connection to use, same way as it happens with running the asset.
+
+## Using Alternative Secrets Backends
+
+By default, Bruin reads connection credentials from the `.bruin.yml` file. However, you can use alternative secrets management solutions like HashiCorp Vault or Doppler.
+
+### Using Doppler
+
+To use Doppler as your secrets backend:
+
+```bash
+bruin run --secrets-backend doppler
+```
+
+Or set via environment variable:
+
+```bash
+export BRUIN_SECRETS_BACKEND=doppler
+bruin run
+```
+
+For more details on configuring Doppler, see the [Doppler secrets documentation](../secrets/doppler.md).
+
+### Using Vault
+
+To use HashiCorp Vault as your secrets backend:
+
+```bash
+bruin run --secrets-backend vault
+```
+
+Or set via environment variable:
+
+```bash
+export BRUIN_SECRETS_BACKEND=vault
+bruin run
+```
+
+For more details on configuring Vault, see the [Vault secrets documentation](../secrets/vault.md).

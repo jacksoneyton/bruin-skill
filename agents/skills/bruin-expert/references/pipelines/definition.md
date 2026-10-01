@@ -1,0 +1,492 @@
+# Pipeline Definition
+
+## Overview
+
+A pipeline is a group of assets that are executed together in the right order. For instance, if you have an asset that ingests data from an API, and another one that creates another table from the ingested data, you have a pipeline.
+
+A pipeline is defined with a `pipeline.yml` file, and all the assets need to be under a folder called `assets` next to this file:
+
+```diff
+my-pipeline/
++ ├─ pipeline.yml // you're here :)
+  └─ assets/
+    ├─ some.asset.yml
+    ├─ another.asset.py
+    └─ yet_another.asset.sql
+```
+
+Here's an example `pipeline.yml`:
+
+```yaml
+name: analytics-daily
+schedule: "@daily"
+start_date: "2024-01-01"
+
+default_connections:
+  snowflake: "sf-default"
+  postgres: "pg-default"
+  slack: "alerts-slack"
+
+tags: [ "daily", "analytics" ]
+domains: [ "marketing" ]
+owner: data-platform
+meta:
+  cost_center: 1234
+
+notifications:
+  slack:
+    - channel: "#data-alerts"
+      success: true
+      failure: true
+  ms_teams:
+    - connection: "teams-default"
+      failure: false
+
+catchup: true
+metadata_push:
+  bigquery: true
+
+retries: 2
+concurrency: 4
+max_active_steps: 8
+
+default:
+  rerun_cooldown: 300
+  secrets:
+    - key: MY_API_KEY
+      inject_as: API_KEY
+  interval_modifiers:
+    start: "-1d"
+    end: "-1d"
+  hooks:
+    pre:
+      - query: "SET my_var = 1"
+    post:
+      - query: "SET my_var = 0"
+
+variables:
+  target_segment:
+    type: string
+    enum: ["self_serve", "enterprise", "partner"]
+    default: "enterprise"
+  forecast_horizon_days:
+    type: integer
+    minimum: 7
+    maximum: 90
+    default: 30
+  experiment_cohorts:
+    type: array
+    items:
+      type: object
+      required: [name, weight, channels]
+      properties:
+        name:
+          type: string
+        weight:
+          type: number
+        channels:
+          type: array
+          items:
+            type: string
+    default:
+      - name: enterprise_baseline
+        weight: 0.6
+        channels: ["email", "customer_success"]
+  channel_overrides:
+    type: object
+    properties:
+      email:
+        type: array
+        items:
+          type: string
+    default:
+      email: ["enterprise_newsletter"]
+
+```
+
+## Table of Contents
+
+- [Name](#name)
+- [Schedule](#schedule)
+- [Start date](#start-date)
+- [Default connections](#default-connections)
+- [Tags](#tags)
+- [Domains](#domains)
+- [Meta](#meta)
+- [Notifications](#notifications)
+- [Catchup](#catchup)
+- [Metadata push](#metadata-push)
+- [Retries](#retries)
+- [Rerun Cooldown](#rerun-cooldown)
+- [Concurrency](#concurrency)
+- [Max Active Steps](#max-active-steps)
+- [Default (pipeline-level defaults)](#default-pipeline-level-defaults)
+- [Variables](#variables)
+
+## Available Fields
+
+### Name
+
+Give your pipeline a clear, human-friendly name. It appears in UIs, logs, and tooling—keep it descriptive.
+
+Example:
+
+```yaml
+name: analytics-daily
+```
+
+---
+
+### Schedule
+
+Defines **how often** your pipeline should execute. This setting is used by your orchestrator (for example, Bruin Cloud or an external scheduler) to automatically trigger the pipeline at regular intervals.
+
+You can use simple presets like `@daily` or `@hourly`, or define a custom **cron expression** for more granular control.
+
+Example:
+
+```yaml
+schedule: "@daily"
+
+# Or run every hour:
+
+schedule: "0 0 * * *"
+```
+
+- **Type:** `String`
+
+| Value       | Description                               |
+|-------------|-------------------------------------------|
+| `@daily`    | Runs once per day (midnight by default)   |
+| `@hourly`   | Runs every hour                           |
+| `* * * * *` | Custom cron expression (minute precision) |
+
+> In **local or ad-hoc runs**, this field is optional — you can trigger pipelines manually with `bruin run`.
+
+### Start date
+
+The earliest date the pipeline has data for. Bruin Cloud uses it as the anchor for scheduled backfills and [catchup](#catchup) runs, with missed intervals filled according to the pipeline's catchup mode.
+
+Example:
+
+```yaml
+start_date: "2024-01-01"
+```
+
+- **Type:** `String` (ISO 8601 date, `YYYY-MM-DD`). The linter rejects any other format.
+
+> Local ad-hoc runs (`bruin run`) take their run window from the `--start-date` / `--end-date` flags (both default to yesterday) and do not read this field. To make a single asset start from a fixed date on `--full-refresh`, set [`start_date` on the asset](../assets/definition-schema.md#start-date) instead.
+
+### Default connections
+
+Define per‑platform default connection names that assets inherit automatically. Use this to avoid repeating connection settings; override at the asset level when an asset needs a different connection.
+
+Example:
+
+```yaml
+default_connections:
+  snowflake: "sf-default"
+  postgres: "pg-default"
+  slack: "alerts-slack"
+```
+
+- **Type:** `Object (map[string]string)`
+- **Default:** `{}`
+- Notes: Keys correspond to supported platforms. See [Data Platforms](../platforms/bigquery.md) for details on platform-specific connections.
+
+### Tags
+
+Attach labels to organize your pipeline and to target subsets of work. Useful for filtering in UIs/CLI (e.g., selecting by tag) and for reporting.
+
+Example:
+
+```yaml
+tags: [ "daily", "analytics" ]
+```
+
+- **Type:** `String[]`
+- **Default:** `[]`
+
+### Domains
+
+Group your pipeline by business domain (e.g., marketing, finance) to improve discoverability and governance. Helps organize views and ownership in larger repos.
+
+Example:
+
+```yaml
+domains: [ "marketing" ]
+```
+
+- **Type:** `String[]`
+- **Default:** `[]`
+
+### Meta
+
+Add custom key/value annotations for cost attribution, or anything your team tracks. Great for search, dashboards, and lightweight governance.
+
+Example:
+
+```yaml
+meta:
+  cost_center: 1234
+```
+
+- **Type:** `Object (map[string]string)`
+- **Default:** `{}`
+
+### Owner
+
+Specify the owner of the pipeline. Useful for tracking responsibility and accountability.
+
+Example:
+
+```yaml
+owner: data-platform
+```
+
+- **Type:** `String`
+- **Default:** `""`
+
+### Notifications
+
+This block configures [legacy notifications](../cloud/legacy-notifications.md). After the team switches to the [new notification system](../cloud/notifications.md), settings in pipeline files are ignored.
+
+Example:
+
+```yaml
+notifications:
+  slack:
+    - channel: "#data-alerts"
+      success: true   # omitting means true
+      failure: true
+  ms_teams:
+    - connection: "teams-default"
+      failure: false  # send only on success
+  discord:
+    - channel: "#data-alerts"
+      success: true
+      failure: true
+  webhook:
+    - connection: "webhook-default"
+      success: true
+      failure: true
+  email:
+    - recipients: ["data-alerts@example.com", "oncall@example.com"]
+      success: false
+      failure: true
+```
+
+- **Type:** `Object`
+
+> This is a Cloud feature. See [Legacy notifications](../cloud/legacy-notifications.md) for configuration and migration details.
+
+### Catchup
+
+Backfill any missed intervals between start_date and now. Turn this on when you need to automatically recover historical runs after downtime or late onboarding.
+
+`catchup` accepts either a boolean or a string mode:
+
+- `false` (or omitted): no catchup
+- `true` or `"active"`: catch up only the runs that should have happened while the pipeline was active
+- `"all"`: catch up every run regardless of the pipeline's active state at the time
+
+Any other string is treated as `false`. The value is always serialized as a string (`""`, `"active"`, or `"all"`).
+
+Example:
+
+```yaml
+catchup: active
+```
+
+- **Type:** `Boolean` or one of `"active"`, `"all"`
+- **Default:** `false`
+
+### Metadata push
+
+Export pipeline and asset metadata to external systems (e.g., a data catalog). Enable when you want lineage, discovery, or governance powered by your warehouse or catalog tooling.
+
+Example:
+
+```yaml
+metadata_push:
+  bigquery: true
+```
+
+- **Type:** `Object`
+
+Fields:
+
+| Field    | Type    | Default | Description                 |
+|----------|---------|---------|-----------------------------|
+| bigquery | Boolean | false   | Export metadata to BigQuery |
+
+### Retries
+
+Control resilience to transient failures by retrying assets/runs a limited number of times. Increase for flaky networks/services; keep low to surface real issues.
+
+Example:
+
+```yaml
+retries: 2
+```
+
+- **Type:** `Integer`
+- **Default:** `2`
+
+**Inheritance:** The pipeline-level `retries` is the default for every asset and every quality check in the pipeline. An [asset can override it](../assets/definition-schema.md#retries) with its own `retries`, and a [check can override it](../quality/overview.md#retries) again, following the resolution chain **check → asset → pipeline**. An explicit value (including `0`, meaning no retries) at any level wins over the inherited default.
+
+### Rerun Cooldown
+
+Set a delay (in seconds) between retry attempts for failed assets. This helps prevent overwhelming downstream systems during failures and allows for temporary issues to resolve. When deploying to Airflow, this is automatically translated to `retries_delay` for compatibility.
+
+Example:
+
+```yaml
+default:
+  rerun_cooldown: 300  # Wait 5 minutes between retries
+```
+
+- **Type:** `Integer`
+- **Default:** `0` (no delay)
+
+**Special values:**
+
+- `0`: No delay between retries (default behavior)
+- `> 0`: Wait the specified number of seconds before retrying
+- `-1`: Disable retry delays (same as `0`)
+
+**Inheritance:** Assets inherit the pipeline's default `rerun_cooldown` unless they specify their own value.
+
+### Concurrency
+
+Limit how many runs you can take at the same time for this pipeline in Bruin Cloud. Defaults to 1 for safety.
+
+Example:
+
+```yaml
+concurrency: 4
+```
+
+- **Type:** `Integer`
+- **Default:** `1`
+
+> [!WARNING]
+> Setting concurrency too high can overload downstream systems. Tune based on your warehouse/engine capacity.
+
+See also: [Concurrency & Resource Limits](../getting-started/concurrency.md).
+
+### Max Active Steps
+
+Limit the number of steps that can run in parallel within a single pipeline run on Bruin Cloud. A "step" includes any unit of work: asset execution (SQL queries, Python scripts, etc.) as well as quality checks. This is useful for controlling the load on downstream systems when a pipeline has many independent assets or checks.
+
+Example:
+
+```yaml
+max_active_steps: 8
+```
+
+- **Type:** `Integer`
+- **Default:** `15` (on Bruin Cloud)
+
+> [!NOTE]
+> This setting only applies to Bruin Cloud. Local runs via `bruin run` are not affected.
+
+> [!WARNING]
+> Setting this too low may slow down pipeline execution. Setting it too high can overload your data warehouse or database. Tune based on the capacity of the systems your assets connect to.
+
+### Default (pipeline-level defaults)
+
+Set sensible defaults for all assets in the pipeline so you don't repeat yourself. Override at the asset level only when a task needs something different. The `default` block accepts asset definition fields except file-derived/runtime-only fields such as `id`, `run`/executable file details, definition file details, and derived `retries_delay`.
+
+Scalar defaults fill only empty asset fields. Maps such as `parameters`, `meta`, and `metadata` are merged without overwriting asset keys. Repeated fields such as `tags`, `domains`, `depends`, `extends`, `columns`, `custom_checks`, and `notifications` are added when they are not already present.
+
+Example:
+
+```yaml
+
+default:
+  timeout: 1h30m
+  secrets:
+    - key: MY_API_KEY
+      inject_as: API_KEY
+  routing:
+    egress_gateway: wg-shared-ams3
+  interval_modifiers:
+    start: "-1d"
+    end: "-1d"
+```
+
+- **Type:** `Object`
+
+Fields:
+
+| Field              | Type                       | Default | Notes                            |
+|--------------------|----------------------------|---------|----------------------------------|
+| type               | String                     | —       | Default asset type (e.g., "sql") |
+| description        | String                     | —       | Default asset description        |
+| start_date         | String                     | —       | Default asset start date         |
+| connection         | String                     | —       | Default connection name          |
+| image              | String                     | —       | Default container image          |
+| instance           | String                     | —       | Default Bruin Cloud instance type |
+| owner              | String                     | —       | Default owner                    |
+| tier               | Integer                    | —       | Default asset tier               |
+| tags               | Array of strings           | []      | Tags added to every asset        |
+| domains            | Array of strings           | []      | Domains added to every asset     |
+| meta               | Object (map[string]string) | {}      | Custom metadata defaults         |
+| metadata           | Object (map[string]string) | {}      | Additional metadata defaults     |
+| parameters         | Object (map[string]string) | {}      | Arbitrary key/value defaults     |
+| secrets            | Array of objects           | []      | See below                        |
+| depends            | Array/string/object        | []      | Default upstream dependencies    |
+| extends            | Array of strings           | []      | Default extensions               |
+| columns            | Array of objects           | []      | Default column metadata/checks   |
+| custom_checks      | Array of objects           | []      | Default custom checks            |
+| materialization    | Object                     | —       | Default materialization config   |
+| snowflake          | Object                     | —       | Snowflake-specific defaults      |
+| athena             | Object                     | —       | Athena-specific defaults         |
+| bigquery           | Object                     | —       | [BigQuery-specific table option defaults](../platforms/bigquery.md#bigquery-table-options) |
+| routing            | Object                     | —       | Runtime routing defaults for assets |
+| interval_modifiers | Object                     | —       | See [Interval Modifiers](../assets/interval-modifiers.md). Applied automatically in Bruin Cloud; needs `--apply-interval-modifiers` on the CLI |
+| hooks              | Object                     | —       | See [Hooks](../assets/definition-schema.md#hooks) |
+| retries            | Integer                    | —       | Default asset retries            |
+| timeout            | String (Go duration)       | —       | Default asset timeout (for example, `1h30m`) |
+| rerun_cooldown     | Integer                    | —       | Default retry delay/cooldown     |
+| refresh_restricted | Boolean                    | —       | Default full-refresh restriction |
+| notifications      | Object                     | —       | Default asset notifications      |
+
+Asset identity/runtime fields such as `name`, `uri`, executable file metadata, definition file metadata, and `retries_delay` are not supported in pipeline defaults.
+
+Secrets item:
+
+| Field     | Type   | Default                 | Description              |
+|-----------|--------|-------------------------|--------------------------|
+| key       | String | —                       | Name of secret to inject |
+| inject_as | String | defaults to same as key | Env var or param name    |
+
+Routing:
+
+| Field          | Type   | Default | Description |
+|----------------|--------|---------|-------------|
+| egress_gateway | String | —       | Named gateway profile to use for asset outbound traffic |
+
+### Variables
+
+Define pipeline-scoped parameters with safe defaults so you can change behavior without editing code.
+
+```yaml
+variables:
+  target_segment:
+    type: string
+    enum: ["self_serve", "enterprise", "partner"]
+    default: "enterprise"
+  forecast_horizon_days:
+    type: integer
+    minimum: 7
+    maximum: 90
+    default: 30
+```
+
+- **Type:** `Object (map[string]variable-schema)`
+
+Each variable must include a `default` value. Variables are defined using [JSON Schema draft-07](https://json-schema.org/draft-07/json-schema-release-notes.html) keywords.
+
+See the **[Variables reference](../variables/overview.md)** for the full list of supported types, keywords (`enum`, `minimum`, `pattern`, etc.), complex type examples, and runtime overrides.

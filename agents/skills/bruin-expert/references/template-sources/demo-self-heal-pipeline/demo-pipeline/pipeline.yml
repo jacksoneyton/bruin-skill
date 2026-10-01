@@ -1,0 +1,8 @@
+name: demo-pipeline
+schedule: daily
+start_date: "2025-01-01"
+catchup: false
+default_connections:
+  duckdb: demo-self-heal-pipeline
+default:
+  type: duckdb.sql

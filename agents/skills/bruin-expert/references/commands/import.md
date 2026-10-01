@@ -1,0 +1,1007 @@
+# `import` Command
+
+The `import` commands allow you to automatically import existing resources as Bruin assets. This includes database tables, BigQuery scheduled queries, ODI XML exports, Tableau dashboards, and QuickSight assets.
+
+## Available Subcommands
+
+- `bruin import database` - Import database tables as Bruin assets
+- `bruin import bq-scheduled-queries` - Import BigQuery scheduled queries as Bruin assets
+- `bruin import odi` - Import Oracle Data Integrator XML exports as Bruin assets
+- `bruin import tableau` - Import Tableau dashboards, workbooks, and data sources as Bruin assets
+- `bruin import quicksight` - Import QuickSight datasets and dashboards as Bruin assets
+
+---
+
+## `import database`
+
+Import existing database tables as Bruin assets.
+
+```bash
+bruin import database [FLAGS] [pipeline path]
+```
+
+### Overview
+
+The database import command streamlines the process of migrating existing database tables into a Bruin pipeline by:
+
+- Connecting to your database using existing connection configurations
+- Scanning database schemas and tables
+- Creating asset definition files
+- Capturing table comments, ownership, and operational metadata
+- Optionally filling column metadata from the database schema
+- Organizing assets in the pipeline's `assets/` directory
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `pipeline path` | **Required.** Path to the directory where the pipeline and assets will be created. |
+
+### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--connection`, `-c` | string | - | **Required.** Name of the connection to use as defined in `.bruin.yml` (or other [secrets backend](../secrets/overview.md)) |
+| `--schema`, `-s` | string | - | Filter by specific schema name |
+| `--no-columns`, `-n` | bool | `false` | Skip filling column metadata from database schema |
+| `--ingestr` | bool | `false` | Generate runnable [ingestr](../assets/ingestr.md) assets that replicate the source instead of source placeholders. `--as-ingestr` is retained as an alias; requires `--destination` |
+| `--destination` | string | - | Destination platform for `--ingestr` assets (e.g. `duckdb`, `postgres`, `bigquery`, `snowflake`) |
+| `--environment`, `--env` | string | - | Target environment name as defined in `.bruin.yml` |
+| `--config-file` | string | - | Path to the `.bruin.yml` file. Can also be set via `BRUIN_CONFIG_FILE` environment variable |
+
+### Supported Database Types
+
+- **Snowflake** → `snowflake`
+- **BigQuery** → `bigquery`
+- **PostgreSQL** → `postgres`
+- **Redshift** → `redshift`
+- **Athena** → `athena`
+- **Databricks** → `databricks`
+- **DuckDB** → `duckdb`
+- **ClickHouse** → `clickhouse`
+- **Azure Synapse** → `synapse`
+- **MS SQL Server** → `mssql`
+- **MongoDB** → `mongo`, `mongo_atlas`
+
+### Importing as ingestr assets
+
+Use `--ingestr` with `--destination` to generate executable ingestr assets for the discovered tables instead of metadata-only source assets. This works with every database connection supported by `import database` that can be used as an ingestr source.
+
+For example, the following command scans `postgres-source` and creates assets that copy its tables directly into the pipeline's default DuckDB connection:
+
+```bash
+bruin import database --connection postgres-source --ingestr --destination duckdb ./my-pipeline
+```
+
+For a source table named `public.Users`, it writes `assets/public/users.asset.yml`:
+
+```yaml
+name: public.users
+type: ingestr
+metadata:
+  extracted_at: "2026-08-26T12:00:00Z"
+parameters:
+  source_connection: postgres-source
+  source_table: public.Users
+  destination: duckdb
+```
+
+The destination connection is resolved from the pipeline's default connection for the selected destination platform. Running the pipeline then transfers each source table directly to the identically named destination table. The source schema and table spelling is preserved in `source_table`, while the Bruin asset name and destination table name use the import command's existing lowercase convention.
+
+`--destination` is required and must be a supported ingestr destination. Passing it without `--ingestr` is rejected. Re-running an ingestr import preserves the existing asset definition while refreshing its import-generated metadata and any owner reported by the database. The older `--as-ingestr` spelling remains available as an alias for compatibility.
+
+#### MongoDB
+
+MongoDB is schemaless and has no `database → schema → table` hierarchy, so it maps as **database → schema** and **collection → table**. The import scans every database on the server (excluding the internal `admin`, `local`, and `config` databases) and creates one `mongo.source` asset per collection under `assets/<database>/`. Use `--schema <database>` to import a single database.
+
+Because collections have no fixed schema, regular imported MongoDB assets are created **without columns** — they are name + metadata stubs (the `--no-columns` flag has no additional effect). You can add column definitions yourself afterwards, where columns drive schema enforcement, masking, and primary keys.
+
+##### Replicating MongoDB with `--ingestr`
+
+A `mongo.source` asset is a metadata placeholder and is **not runnable** on its own (MongoDB is not SQL). Use the general [ingestr import mode](#importing-as-ingestr-assets) to make each collection a runnable asset instead:
+
+```bash
+bruin import database --connection localMongo --ingestr --destination duckdb ./my-pipeline
+```
+
+For a database `myDB` with a `Users` collection this writes `assets/mydb/users.asset.yml`:
+
+```yaml
+name: mydb.users
+type: ingestr
+metadata:
+  extracted_at: "2026-08-26T12:00:00Z"
+parameters:
+  source_connection: localMongo
+  source_table: myDB.Users
+  destination: duckdb
+```
+
+The asset name and file path are lowercased, but `source_table` preserves the original database/collection casing because MongoDB identifiers are case-sensitive.
+
+### How It Works
+
+1. **Connection Setup**: Uses your existing connection configuration from `.bruin.yml` (or any other [secrets backend](../secrets/overview.md))
+2. **Database Scanning**: Retrieves database summary including schemas and tables
+3. **Filtering**: Applies database and schema filters if specified
+4. **Asset Creation**: Creates YAML source asset files named `<table>.asset.yml` under `assets/<schema>/`
+5. **Directory Structure**: Places assets in `{pipeline_path}/assets/<schema>/<table>.asset.yml` (lowercase)
+6. **Column Metadata**: Optionally queries table schema to populate column information
+
+### Examples
+
+#### Basic Import
+
+Import all tables from a Snowflake connection:
+
+```bash
+bruin import database --connection snowflake-prod ./my-pipeline
+```
+
+#### Schema-Specific Import
+
+Import only tables from a specific schema:
+
+```bash
+bruin import database --connection bigquery-dev --schema analytics ./my-pipeline
+```
+
+#### Import with Column Metadata
+
+Import tables and automatically fill column information (default behavior):
+
+```bash
+bruin import database --connection postgres-local ./my-pipeline
+```
+
+#### Import without Column Metadata
+
+Skip filling column information:
+
+```bash
+bruin import database --connection postgres-local --no-columns ./my-pipeline
+```
+
+#### Environment-Specific Import
+
+Import using a specific environment configuration:
+
+```bash
+bruin import database --connection snowflake-prod --environment production ./my-pipeline
+```
+
+#### Replicate a database as ingestr assets
+
+Generate runnable ingestr assets for every discovered table so the database can be replicated into a destination:
+
+```bash
+bruin import database --connection postgres-source --ingestr --destination duckdb ./my-pipeline
+```
+
+See [Importing as ingestr assets](#importing-as-ingestr-assets) above for the generated asset structure.
+
+### Generated Asset Structure
+
+Each imported table creates a YAML **source** asset file with the following structure:
+
+```yaml
+type: pg.source  # or sf.source, bq.source, ms.source, etc.
+description: Customer orders
+owner: analytics
+metadata:
+  extracted_at: "2026-08-26T12:00:00Z"
+  created_at: "2024-01-10T09:30:00Z"
+  last_modified: "2026-08-25T18:45:00Z"
+  row_count: "1234567"
+  size: 256.00 MB
+```
+
+These are metadata-only source assets. SQL transformation assets live in `.sql` files, and `import database` does not generate SQL templates.
+
+The asset file includes:
+
+- **File Name**: `assets/<schema>/<table>.asset.yml` (lowercase)
+- **Description**: The database table comment, when available
+- **Owner**: The database table owner, when available
+- **Metadata**: The extraction timestamp and any creation time, last-modified time, row count, and size reported by the database
+- **Asset Type**: Automatically determined from connection type
+
+Re-importing refreshes the import-generated metadata and any owner reported by the database while preserving custom metadata keys and the existing description.
+
+> [!INFO]
+> **Asset Name** is derived from the file path, e.g. `assets/schema/table.asset.yml` -> `schema.table` (lowercase)
+
+#### With Column Metadata (Default)
+
+By default, the asset will include column metadata:
+
+```yaml
+type: pg.source
+description: Customer orders
+owner: analytics
+metadata:
+  extracted_at: "2026-08-26T12:00:00Z"
+  row_count: "1234567"
+  size: 256.00 MB
+columns:
+  - name: column_name
+    type: column_type
+    checks: []
+    upstreams: []
+```
+
+### Prerequisites
+
+1. **Pipeline Directory**: The target pipeline path must exist
+2. **Connection Configuration**: The specified connection must be defined in `.bruin.yml` (or any other [secrets backend](../secrets/overview.md))
+3. **Database Access**: The connection must have read permissions on the target database/schemas
+4. **Assets Directory**: Will be created automatically if it doesn't exist
+
+### Output
+
+The command provides feedback on the import process:
+
+```bash
+Imported 25 tables and Merged 3 from data warehouse 'analytics' (schema: public) into pipeline './my-pipeline'
+```
+
+If column filling encounters issues, warnings are displayed but don't stop the import:
+
+```bash
+Warning: Could not fill columns for public.table_name: connection does not support schema introspection
+```
+
+### Error Handling
+
+Common errors and solutions:
+
+- **Connection not found**: Verify the connection name exists in your `.bruin.yml` (or any other [secrets backend](../secrets/overview.md))
+- **Database access denied**: Check connection credentials and permissions
+- **Schema not found**: Verify the schema name exists in the target database
+- **Pipeline path invalid**: Ensure the target directory exists and is writable
+
+### Best Practices
+
+1. **Start Small**: Use schema filtering for large databases to avoid importing too many tables
+2. **Column Metadata**: Column metadata is filled by default for richer asset definitions
+3. **Review Generated Assets**: Check and customize the generated assets  as needed
+
+### Related Commands
+
+- [`bruin run`](run.md) - Execute the imported assets
+- [`bruin validate`](validate.md) - Validate the imported pipeline structure
+
+---
+
+## `import bq-scheduled-queries`
+
+Import BigQuery scheduled queries from the Data Transfer Service as individual Bruin assets.
+
+```bash
+bruin import bq-scheduled-queries [FLAGS] [pipeline path]
+```
+
+### Overview
+
+The BigQuery scheduled queries import command allows you to:
+
+- Connect to BigQuery Data Transfer Service
+- Automatically scan across all BigQuery regions to find scheduled queries
+- Present queries in an interactive terminal UI for selection
+- Import selected queries as SQL assets in your Bruin pipeline
+
+### Interactive UI Features
+
+The command presents an interactive dual-pane interface where you can:
+
+- **Navigate** with arrow keys or `j`/`k`
+- **Select/deselect** queries with space bar
+- **Select all** with `a`, **deselect all** with `n`
+- **Switch panes** with Tab to scroll query details
+- **Import selected** queries with Enter
+- **Quit** without importing with `q` or Esc
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `pipeline path` | **Required.** Path to the directory where the pipeline and imported query assets will be created. |
+
+### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--connection`, `-c` | string | - | **Required.** Name of the BigQuery connection to use as defined in `.bruin.yml` (or any other [secrets backend](../secrets/overview.md)) |
+| `--environment`, `--env` | string | - | Target environment name as defined in `.bruin.yml` |
+| `--config-file` | string | - | Path to the `.bruin.yml` file. Can also be set via `BRUIN_CONFIG_FILE` environment variable |
+| `--project-id`, `-p` | string | - | BigQuery project ID (uses connection config if not specified) |
+| `--location`, `-l` | string | - | BigQuery location/region (searches all regions if not specified) |
+
+### How It Works
+
+1. **Authentication**: Uses your BigQuery connection credentials from `.bruin.yml` (or any other [secrets backend](../secrets/overview.md))
+2. **Regional Scanning**: Searches across all BigQuery regions in parallel for scheduled queries (unless specific location provided)
+3. **Interactive Selection**: Displays found queries in a user-friendly TUI with preview
+4. **Asset Generation**: Creates `.sql` files with the query content and appropriate metadata
+5. **Pipeline Integration**: Places assets in the pipeline's `assets/` directory
+
+### Examples
+
+#### Basic Import
+
+Import scheduled queries using default connection settings:
+
+```bash
+bruin import bq-scheduled-queries ./my-pipeline --connection my-bq-conn
+```
+
+#### Environment-Specific Import
+
+Import using a specific environment configuration:
+
+```bash
+bruin import bq-scheduled-queries ./my-pipeline --connection bq-prod --env production
+```
+
+#### Region-Specific Import
+
+Import queries from a specific BigQuery region only:
+
+```bash
+bruin import bq-scheduled-queries ./my-pipeline --connection my-bq --location us-central1
+```
+
+#### Custom Project Import
+
+Import from a specific GCP project:
+
+```bash
+bruin import bq-scheduled-queries ./my-pipeline --connection my-bq --project-id my-gcp-project
+```
+
+### Generated Asset Structure
+
+Each imported scheduled query creates a SQL file with:
+
+- **File Name**: Sanitized version of the query display name with `.sql` extension
+- **Asset Type**: `bq.query` (BigQuery query asset)
+- **Content**: The original SQL query from the scheduled query
+- **Description**: References the original scheduled query name
+- **Materialization**: Table materialization if the query has a target dataset
+
+Example generated asset:
+
+```sql
+/* @bruin
+name: sales_daily_summary
+type: bq.query
+description: "Imported from scheduled query: Sales Daily Summary"
+
+materialization:
+  type: table
+@bruin */
+
+SELECT 
+  date,
+  SUM(revenue) as total_revenue,
+  COUNT(DISTINCT customer_id) as unique_customers
+FROM sales_data
+WHERE date = CURRENT_DATE()
+GROUP BY date
+```
+
+### Prerequisites
+
+1. **BigQuery Connection**: A BigQuery connection must be configured in `.bruin.yml` (or other [secrets backend](../secrets/overview.md))
+2. **Data Transfer API**: The BigQuery Data Transfer API must be enabled in your GCP project
+3. **Permissions**: Your service account needs:
+   - `bigquery.transfers.get` permission
+   - `bigquery.transfers.list` permission
+4. **Pipeline Directory**: The target pipeline path must exist
+
+### Output
+
+The command provides real-time feedback during the import process:
+
+```plaintext
+🔍 Searching for scheduled queries across all BigQuery regions...
+✨ Found 5 queries in us-central1
+✨ Found 3 queries in europe-west1
+🎉 Search complete! Found 8 queries across 2 regions
+
+[Interactive UI displays here for selection]
+
+Imported scheduled query 'Sales Daily Summary' as asset 'sales_daily_summary'
+Imported scheduled query 'Customer Analytics' as asset 'customer_analytics'
+
+Successfully imported 2 scheduled queries into pipeline './my-pipeline'
+```
+
+### Error Handling
+
+Common issues and solutions:
+
+- **API not enabled**: Enable the BigQuery Data Transfer API in your GCP project
+- **Permission denied**: Ensure your service account has the required permissions
+- **No queries found**: Verify scheduled queries exist in the specified project/location
+- **Connection not BigQuery**: The connection must be a BigQuery type connection
+
+### Best Practices
+
+1. **Review Queries**: Use the preview pane to review query content before importing
+2. **Selective Import**: Only import queries that fit your pipeline's purpose
+3. **Post-Import Review**: Review and customize the generated SQL files as needed
+4. **Naming Conflicts**: The command will skip queries if an asset with the same name already exists
+
+### Notes
+
+- The command searches all common BigQuery regions by default for comprehensive discovery
+- Query search is performed in parallel for faster results across regions
+- The interactive UI provides a smooth experience for reviewing and selecting queries
+- Imported queries maintain their original SQL without modification
+
+### Related Commands
+
+- [`bruin run`](run.md) - Execute the imported query assets
+- [`bruin validate`](validate.md) - Validate the imported pipeline structure
+- [`bruin import database`](#import-database) - Import database tables as assets
+
+---
+
+## `import odi`
+
+Import Oracle Data Integrator (ODI/Sunopsis) XML exports as Bruin Oracle assets.
+
+```bash
+bruin import odi [FLAGS] [ODI XML file or directory] [pipeline path]
+```
+
+### Overview
+
+The ODI importer converts exported scenario XML into a Bruin pipeline by:
+
+- Reading ODI scenario files (`SnpScen`, `SnpScenStep`, and `SnpScenTask`)
+- Reading logical schema exports (`SnpLschema`) and mapping ODI logical schemas to Oracle schemas
+- Creating `oracle.sql` assets for executable ODI scenario steps
+- Creating `oracle.source` assets for referenced upstream Oracle tables
+- Creating `empty` control assets for `OdiStartScen` scenario calls when the called scenario is present in the same import
+- Translating common ODI expressions such as `odiRef.getObjectName`, `odiRef.getSchemaName`, and `#GLOBAL.VAR_NAME`
+- Creating ODI variable macros in `macros/odi_variables.sql` and using them from imported SQL assets
+- Detecting ODI control-flow constructs such as failure branches, success jumps, loops, unsupported variable operations, and unresolved scenario calls
+- Creating `pipeline.yml` when the target pipeline path does not already contain one
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `ODI XML file or directory` | **Required.** A single ODI XML export or a directory containing ODI XML exports. Directories are scanned recursively for `.xml` files. |
+| `pipeline path` | **Required.** Path where the Bruin pipeline and generated assets should be written. |
+
+### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--connection`, `-c` | string | - | Optional Oracle connection name to set on imported assets. |
+| `--overwrite` | bool | `false` | Overwrite existing generated asset files. By default, existing files are skipped. |
+
+### Examples
+
+Import a directory of ODI exports into a new pipeline:
+
+```bash
+bruin import odi ./odi-export ./bruin-odi-pipeline
+```
+
+Import with an Oracle connection:
+
+```bash
+bruin import odi ./odi-export ./bruin-odi-pipeline --connection oracle-prod
+```
+
+Overwrite previously generated files:
+
+```bash
+bruin import odi ./odi-export ./bruin-odi-pipeline --overwrite
+```
+
+### Generated Asset Structure
+
+For a mapping step targeting `LGC_STG.STG_D_LOAN_1`, where `LGC_STG` maps to Oracle schema `STG`, the importer creates:
+
+```text
+my-pipeline/
+├─ pipeline.yml
+├─ odi_control_flow_report.yml
+├─ macros/
+│  └─ odi_variables.sql
+└─ assets/
+   ├─ odi/
+   │  └─ pkg_parent/
+   │     └─ 010_start_child_v001_task_1.asset.yml
+   ├─ stg/
+   │  └─ stg_d_loan_1.sql
+   └─ tb/
+      └─ kredi.asset.yml
+```
+
+The generated SQL asset uses the Oracle asset type:
+
+```sql
+/* @bruin
+name: stg.stg_d_loan_1
+type: oracle.sql
+connection: oracle-prod
+depends:
+  - tb.kredi
+meta:
+  importer: odi
+  odi_scenario: PKG_D_LOAN_STG_1
+  odi_step: MAP_STG_D_LOAN_1
+@bruin */
+
+-- ODI task: Insert new rows / IKM Oracle (task_no=80, order=80, type=J)
+insert into "STG"."STG_D_LOAN_1"
+select *
+from "TB"."KREDI";
+```
+
+When an `OdiStartScen` command targets another scenario included in the same import, the importer creates an `empty` Bruin asset for that call. The call asset depends on the generated assets from the called scenario, and later assets in the caller scenario depend on the call asset.
+If the called scenario is missing from the import, the runtime command is preserved as a SQL comment so it remains visible during migration review.
+When procedural control flow is detected, the importer still writes the SQL, source, and macro assets it can safely flatten, and writes `odi_control_flow_report.yml` with the constructs that need manual migration review.
+
+### Notes
+
+- ODI variable references are converted to generated macro calls. For example, `#GLOBAL.VAR_ETL_DATE` becomes <code v-pre>{{ odi_global_var_etl_date() }}</code> in asset SQL.
+- Variable defaults found in ODI scenario exports are added to `pipeline.yml`, and generated macros wrap those defaults when no ODI variable-step SQL expression is available.
+- ODI variable steps are not generated as standalone assets; simple `SELECT ... FROM DUAL` assignments are converted into macro bodies instead.
+- ODI control-flow is not emulated as a procedural runner. Linear steps and resolvable scenario calls are flattened into Bruin assets, while non-linear routing and unresolved calls are reported for manual conversion into Bruin-native pipelines or orchestration.
+- Logical schemas without a matching export use a simple fallback: `LGC_STG` becomes `STG`.
+- Review generated assets before running them. ODI exports can contain multi-statement operational SQL, PL/SQL blocks, and ODI runtime commands that may need manual adjustment for your Oracle connection and Bruin execution model.
+
+### Related Commands
+
+- [`bruin run`](run.md) - Execute the imported ODI assets
+- [`bruin validate`](validate.md) - Validate the imported pipeline structure
+- [`bruin render`](render.md) - Preview rendered variables in imported SQL assets
+
+---
+
+## `import tableau`
+
+Import Tableau dashboards, workbooks, and data sources as Bruin assets with automatic dependency detection and project hierarchy replication.
+
+```bash
+bruin import tableau [FLAGS] [pipeline path]
+```
+
+### Overview
+
+The Tableau import command enables you to:
+
+- Connect to Tableau Cloud/Server using Personal Access Tokens
+- Automatically discover and import dashboards, workbooks, and data sources
+- Replicate Tableau's project folder structure in your Bruin pipeline
+- Create dependency relationships between dashboards and data sources
+- Preserve metadata including project hierarchy and workbook associations
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `pipeline path` | **Required.** Path to the directory where the pipeline and imported Tableau assets will be created. |
+
+### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--connection`, `-c` | string | - | **Required.** Name of the Tableau connection to use as defined in `.bruin.yml` |
+| `--environment`, `--env` | string | - | Target environment name as defined in `.bruin.yml` |
+| `--config-file` | string | - | Path to the `.bruin.yml` file. Can also be set via `BRUIN_CONFIG_FILE` environment variable |
+
+### How It Works
+
+1. **Authentication**: Uses your Tableau Personal Access Token from `.bruin.yml`
+2. **Discovery Phase**:
+   - Fetches all projects to understand the hierarchy
+   - Retrieves workbooks and their associated views (dashboards/worksheets)
+   - Identifies data source connections
+3. **Parallel Processing**: Uses up to 10 concurrent workers to fetch workbook details efficiently
+4. **Asset Generation**:
+   - Creates folder structure matching Tableau projects
+   - Generates YAML assets for dashboards, workbooks, and data sources
+   - Establishes dependency relationships
+5. **Name Sanitization**: Folder and file names are automatically sanitized (spaces replaced with underscores, special characters removed)
+
+### Examples
+
+#### Basic Import
+
+Import all Tableau assets:
+
+```bash
+bruin import tableau ./my-pipeline --connection tableau-prod
+```
+
+#### Environment-Specific Import
+
+Import using a specific environment configuration:
+
+```bash
+bruin import tableau ./my-pipeline --connection tableau-cloud --env production
+```
+
+### Generated Asset Structure
+
+The import command creates a hierarchical folder structure that mirrors your Tableau project organization:
+
+```text
+assets/
+└── tableau/
+    ├── data_sources/
+    │   ├── sales_datasource.asset.yml
+    │   └── customer_datasource.asset.yml
+    └── dashboards/
+        ├── marketing_analytics/           # Project folder
+        │   ├── campaign_dashboard.asset.yml
+        │   └── roi_tracker.asset.yml
+        └── sales_reporting/               # Project folder
+            ├── daily_sales.asset.yml
+            └── quarterly_review.asset.yml
+```
+
+#### Dashboard Asset Example
+
+```yaml
+type: tableau.dashboard
+description: 'Tableau dashboard: Sales Overview [Project: Sales Reporting]'
+meta:
+  project_hierarchy: Sales Reporting
+  workbook_id: 57e851bb-c413-4f24-8125-e14ad9d8c07b
+  workbook_url: https://tableau.company.com/#/site/analytics/workbooks/SalesWorkbook
+
+depends:
+  - tableau.data_sources.sales_datasource
+  - tableau.data_sources.customer_datasource
+
+owner: analyst@company.com
+
+parameters:
+  dashboard_id: 2447c61b-8426-4767-a6dd-88292425551b
+  dashboard_name: Sales Overview
+  refresh: "false"
+  url: https://tableau.company.com/#/site/analytics/views/SalesWorkbook/SalesOverview
+```
+
+#### Data Source Asset Example
+
+```yaml
+type: tableau.datasource
+description: 'Tableau data source: Sales Database'
+
+owner: data-team@company.com
+
+parameters:
+  datasource_id: 8a9b10c2-3d4e-5f67-8901-234567890abc
+  datasource_name: Sales Database
+  refresh: "false"
+```
+
+### Key Features
+
+#### Project Hierarchy Preservation
+
+The importer maintains your Tableau project structure, creating nested folders that match your Tableau organization. Project names are sanitized to be filesystem-friendly while maintaining recognizability.
+
+#### Automatic Dependency Detection
+
+The importer automatically:
+
+- Identifies which data sources each dashboard depends on
+- Creates proper dependency chains using full asset paths
+- Ensures correct execution order in your pipeline
+
+#### Metadata Preservation
+
+Each asset includes metadata about:
+
+- Parent workbook name and URL
+- Project hierarchy
+- Original Tableau IDs for programmatic access
+- Owner information from Tableau
+
+#### Name Extraction
+
+Asset names are derived from file paths rather than explicitly defined, allowing Bruin to handle naming automatically. This prevents naming conflicts and ensures consistency.
+
+### Prerequisites
+
+1. **Tableau Connection**: A Tableau connection must be configured in `.bruin.yml` with:
+   - Personal Access Token (PAT) for authentication
+   - Site ID for your Tableau instance
+   - Base URL for Tableau Cloud/Server
+2. **Permissions**: Your PAT must have permissions to:
+   - View workbooks and views
+   - Access data source metadata
+   - List projects
+3. **Pipeline Directory**: The target pipeline path must exist
+
+### Configuration Example
+
+In your `.bruin.yml`:
+
+```yaml
+connections:
+  tableau:
+    - name: tableau-prod
+      host: prod-useast-b.online.tableau.com # hostname only, without https://
+      site_id: internetsociety
+      personal_access_token_name: ${TABLEAU_PAT_NAME}
+      personal_access_token_secret: ${TABLEAU_PAT_TOKEN}
+```
+
+### Output
+
+The command provides progress updates during import:
+
+```plaintext
+Fetching Tableau workbooks and dashboards...
+Found 15 workbooks with 47 dashboards
+Fetching details for all workbooks (using 10 parallel workers)...
+Processing workbook: Marketing Analytics (3/15)
+Creating assets in: ./my-pipeline/assets/tableau/
+Successfully imported:
+- 47 dashboards
+- 12 data sources
+- Created 5 project folders
+```
+
+### Error Handling
+
+The import process is resilient to partial failures:
+
+- **Missing Views**: If views can't be fetched for a workbook, it continues with other workbooks
+- **API Errors**: Individual API failures are logged but don't stop the entire import
+- **Name Conflicts**: Sanitization ensures valid filesystem names; extremely similar names may require manual adjustment
+
+Common issues and solutions:
+
+- **Authentication Failed**: Verify your PAT is valid and not expired
+- **Site ID Missing**: Ensure site_id is configured in your connection
+- **No Workbooks Found**: Check that your PAT has appropriate permissions
+- **API Version Issues**: The importer uses Tableau API v3.21 by default
+
+### Best Practices
+
+1. **Review Generated Assets**: After import, review the generated structure and customize as needed
+2. **Folder Organization**: The automatic folder structure can be reorganized if needed
+3. **Dependency Management**: Review dependencies to ensure they match your expectations
+4. **Incremental Updates**: Re-running import will overwrite existing assets; consider version control
+5. **Name Validation**: Run `bruin validate` after import to ensure all asset names are valid
+
+### Notes
+
+- Dashboard and worksheet assets are created with `refresh: "false"` by default (no-op assets)
+- Data source assets can be modified to enable refresh by setting `refresh: "true"`
+- The import process fetches data in parallel for improved performance
+- Extremely long or complex project hierarchies may be truncated for filesystem compatibility
+
+### Related Commands
+
+- [`bruin run`](run.md) - Execute the imported Tableau assets
+- [`bruin validate`](validate.md) - Validate the imported pipeline structure
+- [Tableau Asset Documentation](../assets/tableau-refresh.md) - Learn about Tableau asset types and refresh capabilities
+
+---
+
+## `import quicksight`
+
+Import Amazon QuickSight datasets and dashboards as Bruin assets with automatic dependency detection, column metadata, and chart-level details.
+
+```bash
+bruin import quicksight [FLAGS] [pipeline path]
+```
+
+### Overview
+
+The QuickSight import command enables you to:
+
+- Connect to AWS QuickSight using your configured credentials
+- Automatically discover all datasets and dashboards
+- Present an interactive terminal UI for selecting which assets to import
+- Create dependency relationships between dashboards and datasets
+- Preserve column definitions and upstream warehouse table references for datasets
+- Extract chart-level metadata (dimensions, metrics, chart types) for dashboards
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `pipeline path` | **Required.** Path to the directory where the pipeline and imported QuickSight assets will be created. |
+
+### Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--connection`, `-c` | string | - | **Required.** Name of the QuickSight connection to use as defined in `.bruin.yml` |
+| `--environment`, `--env` | string | - | Target environment name as defined in `.bruin.yml` |
+| `--config-file` | string | - | Path to the `.bruin.yml` file. Can also be set via `BRUIN_CONFIG_FILE` environment variable |
+| `--all`, `-a` | bool | `false` | Import all assets without interactive selection |
+
+### Interactive UI Features
+
+When run without the `--all` flag, the command presents an interactive terminal UI where you can:
+
+- **Navigate** with arrow keys or `j`/`k`
+- **Select/deselect** items with space bar
+- **Select all** with `a`, **deselect all** with `n`
+- **Filter** assets by typing
+- **Import selected** assets with Enter
+- **Quit** without importing with `q` or Esc
+
+### How It Works
+
+1. **Authentication**: Uses your QuickSight AWS credentials from `.bruin.yml`
+2. **Discovery Phase**: Fetches all datasets and dashboards in parallel
+3. **Detail Fetching**: Retrieves detailed metadata for selected assets using up to 10 concurrent workers
+4. **Asset Generation**:
+   - Creates dataset assets with column definitions and upstream table dependencies
+   - Creates dashboard assets with chart-level metadata and dataset dependencies
+5. **Name Sanitization**: Asset names are automatically sanitized (spaces, dashes, and special characters replaced with underscores)
+
+### Examples
+
+#### Basic Import (Interactive)
+
+Import QuickSight assets with interactive selection:
+
+```bash
+bruin import quicksight ./my-pipeline --connection quicksight-prod
+```
+
+#### Import All Assets
+
+Import all datasets and dashboards without interactive selection:
+
+```bash
+bruin import quicksight ./my-pipeline --connection quicksight-prod --all
+```
+
+#### Environment-Specific Import
+
+Import using a specific environment configuration:
+
+```bash
+bruin import quicksight ./my-pipeline --connection quicksight-prod --env production
+```
+
+### Generated Asset Structure
+
+The import command creates a structured folder hierarchy under your pipeline:
+
+```text
+assets/
+└── quicksight/
+    ├── datasets/
+    │   ├── dataset_issues_custom_sql.asset.yml
+    │   └── dataset_sales.asset.yml
+    └── dashboards/
+        ├── dashboard_test.asset.yml
+        └── dashboard_analytics.asset.yml
+```
+
+#### Dataset Asset Example
+
+```yaml
+name: quicksight.datasets.dataset_issues_custom_sql
+type: quicksight.dataset
+description: 'QuickSight dataset: issues_custom_sql'
+
+parameters:
+  dataset_id: 23e4f645-9837-4e73-ad15-04ccd4baa400
+  dataset_name: issues_custom_sql
+  import_mode: SPICE
+  refresh: "false"
+  custom_sql: "select * from issues where true limit 50"
+
+columns:
+  - name: id
+    type: STRING
+  - name: title
+    type: STRING
+  - name: description
+    type: STRING
+```
+
+#### Dashboard Asset Example
+
+```yaml
+name: quicksight.dashboards.dashboard_test
+type: quicksight.dashboard
+description: 'QuickSight dashboard: test'
+
+depends:
+  - quicksight.datasets.dataset_issues
+
+parameters:
+  chart_count: "2"
+  charts[0].dimensions: id
+  charts[0].metrics: labels
+  charts[0].name: BarChart_0
+  charts[0].type: BarChart
+  charts[1].dimensions: assignee_id
+  charts[1].metrics: branch_name
+  charts[1].name: BarChart_1
+  charts[1].type: BarChart
+  dashboard_id: 77f8aa6a-de1c-4cb8-8323-856275b35096
+  dashboard_name: test
+
+columns:
+  - name: id
+    type: STRING
+  - name: labels
+    type: FLOAT
+  - name: assignee_id
+    type: STRING
+  - name: branch_name
+    type: FLOAT
+```
+
+### Key Features
+
+#### Automatic Dependency Detection
+
+The importer automatically identifies which datasets each dashboard depends on using dataset ARNs, and creates proper dependency chains in the generated assets.
+
+#### Column Metadata
+
+Dataset assets include column definitions with type mapping:
+- `STRING` → `STRING`
+- `INTEGER` → `INTEGER`
+- `DECIMAL` → `FLOAT`
+- `DATETIME` → `TIMESTAMP`
+
+Dashboard assets include columns derived from chart dimensions (as `STRING`) and metrics (as `FLOAT`).
+
+#### Chart-Level Metadata
+
+Dashboard assets capture detailed chart information including chart type, dimensions, and metrics, enabling full lineage tracking from warehouse tables through datasets to dashboard visualizations.
+
+#### Upstream Table References
+
+For datasets backed by relational tables, the importer automatically creates upstream dependencies to the source warehouse tables in `schema.table` format.
+
+### Prerequisites
+
+1. **QuickSight Connection**: A QuickSight connection must be configured in `.bruin.yml` with AWS credentials
+2. **Permissions**: Your AWS credentials must have permissions to:
+   - `quicksight:ListDataSets` and `quicksight:DescribeDataSet`
+   - `quicksight:ListDashboards`, `quicksight:DescribeDashboard`, and `quicksight:DescribeDashboardDefinition`
+   - `quicksight:ListDataSources`
+3. **Pipeline Directory**: The target pipeline path must exist
+
+### Error Handling
+
+The import process is resilient to partial failures:
+
+- **Missing Details**: If details can't be fetched for a dataset or dashboard, it is skipped with a warning
+- **Existing Assets**: Assets that already exist in the pipeline are skipped automatically
+- **Name Conflicts**: Sanitization ensures valid filesystem names
+
+Common issues and solutions:
+
+- **Authentication Failed**: Verify your AWS credentials are valid
+- **No Assets Found**: Check that your AWS account has QuickSight datasets or dashboards
+- **Connection Type Mismatch**: Ensure the connection is configured as a QuickSight type
+
+### Best Practices
+
+1. **Review Generated Assets**: After import, review the generated structure and customize as needed
+2. **Enable Refresh Selectively**: Imported datasets have `refresh: "false"` by default — set to `"true"` only for datasets you want to refresh from your pipeline
+3. **Incremental Updates**: Re-running import will skip existing assets; delete the asset file first to re-import
+4. **Validate After Import**: Run `bruin validate` after import to ensure all asset names and dependencies are valid
+
+### Related Commands
+
+- [`bruin run`](run.md) - Execute the imported QuickSight assets
+- [`bruin validate`](validate.md) - Validate the imported pipeline structure
+- [QuickSight Asset Documentation](../assets/quicksight-refresh.md) - Learn about QuickSight asset types and refresh capabilities
