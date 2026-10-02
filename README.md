@@ -15,23 +15,30 @@ bruin ai skills all
 
 Option B, from this repo (installs everything, no Bruin CLI needed):
 
-The `agents` folder in this repo is `.agents` once installed. Copy it into the project root under the dotted name.
+The `agents` folder in this repo is `.agents` once installed. Use the install script, which works whether or not the project already has a `.agents` folder (for example after `bruin ai skills all`):
 
 Linux or macOS:
 
 ```
 git clone https://github.com/jacksoneyton/bruin-skill
-cp -r bruin-skill/agents <your-project>/.agents
+bruin-skill/tools/install.sh <your-project>
 ```
 
 Windows PowerShell:
 
 ```
 git clone https://github.com/jacksoneyton/bruin-skill
-Copy-Item -Recurse bruin-skill\agents <your-project>\.agents
+.\bruin-skill\tools\install.ps1 -Project <your-project>
 ```
 
-If the project already has a `.agents` folder, copy only `agents/skills/bruin-expert` into `.agents/skills/` instead.
+To copy by hand, copy the contents of `agents`, not the folder itself. A plain `cp -r agents <your-project>/.agents` nests the skills under `.agents/agents/` when `.agents` already exists.
+
+```
+mkdir -p <your-project>/.agents
+cp -r bruin-skill/agents/. <your-project>/.agents/
+```
+
+The install copies overwrite files with the same path, so the upstream skills in `.agents/skills` are replaced by the copies in this repo. They match unless your Bruin CLI is newer. To add only the new skill, copy `agents/skills/bruin-expert` into `.agents/skills/`.
 
 Some agents also read `.claude/skills/`. Bruin's own installer keeps `.claude` as a symlink to `.agents`. If your agent does not read `.agents/skills/`, point its skills folder at the same directory.
 
